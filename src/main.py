@@ -44,6 +44,12 @@ def main() -> int:
         help="Disable system tray / menu bar UI",
     )
     parser.add_argument(
+        "--doctor", "--check",
+        action="store_true",
+        dest="doctor",
+        help="Run system diagnostic health check and exit",
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable debug logging",
@@ -52,6 +58,17 @@ def main() -> int:
     args = parser.parse_args()
     setup_logging(verbose=args.verbose)
     logger = logging.getLogger("main")
+
+    # Run system diagnosis if --doctor is requested
+    if args.doctor:
+        from src.diagnostics import SystemDoctor
+        doctor = SystemDoctor(
+            config_path=Path(args.config),
+            dictionary_path=Path(args.dictionary),
+        )
+        report = doctor.run_all_diagnostics()
+        print(report.render_cli())
+        return 0
 
     logger.info("Initializing Tool_ASR Inputer...")
     app = VoiceInputApp(

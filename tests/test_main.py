@@ -24,3 +24,19 @@ def test_main_cli_execution() -> None:
         assert exit_code == 0
         assert mock_app.start.called
         assert mock_app.stop.called
+
+
+def test_main_cli_doctor() -> None:
+    test_args = ["main.py", "--doctor"]
+
+    with patch.object(sys, "argv", test_args), \
+         patch("src.diagnostics.SystemDoctor.run_all_diagnostics") as mock_diag, \
+         patch("builtins.print") as mock_print:
+
+        mock_report = MagicMock()
+        mock_report.render_cli.return_value = "DIAGNOSTIC_OUTPUT"
+        mock_diag.return_value = mock_report
+
+        exit_code = main()
+        assert exit_code == 0
+        mock_print.assert_called_with("DIAGNOSTIC_OUTPUT")

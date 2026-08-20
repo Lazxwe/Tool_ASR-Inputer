@@ -11,7 +11,7 @@
 | **Phase 1** | **基礎環境與文字核心** | ✅ 已完成 (Completed) | 建立隔離環境、OpenCC 繁中轉換、Custom Dictionary 替換、文字管線與單元測試 (20/20 通過, 93% 覆蓋率) |
 | **Phase 2** | **音訊錄製與 ASR 整合** | ✅ 已完成 (Completed) | `sounddevice` 錄音、Qwen3-ASR (0.6B/1.7B) 本地模型載入與推論整合 (47/47 通過, 97% 覆蓋率) |
 | **Phase 3** | **系統互動與常駐介面** | ✅ 已完成 (Completed) | F8 全域按鍵、系統剪貼簿寫入與模擬貼上 (Cmd+V/Ctrl+V)、pystray 常駐選單、應用程式背景調度 (94/94 通過, 95% 覆蓋率) |
-| **Phase 4** | **錯誤防禦與打包分發** | 待開始 (Pending) | 麥克風與模型異常處理、跨平台驗證、PyInstaller 打包驗證 |
+| **Phase 4** | **錯誤防禦與打包分發** | ✅ 已完成 (Completed) | 純本機模型檢測與引導、異常防禦（麥克風/模型/詞庫）、一鍵系統診斷 (`--doctor`)、PyInstaller 分發打包與繁中部署手冊 (110/110 通過, 95% 覆蓋率) |
 
 ---
 
@@ -52,7 +52,10 @@
 - [x] 執行測試與覆蓋率檢查確認 100% 通過 (94 passed in 4.82s, 95% coverage)
 
 ### Phase 4: 錯誤防禦與打包分發 (Phase 4: Error Handling & Packaging)
-- [ ] 健全化異常處理（麥克風缺失/權限、模型載入失敗、JSON 損毀）
-- [ ] 跨平台相容性測試（macOS / Windows）
-- [ ] PyInstaller 打包腳本與獨立執行檔測試
-- [ ] 完成驗收測試清單
+- [x] 實作純本機模型檢測與引導機制（優先檢測 `./models/0.6b/` 與 `./models/1.7b/`，缺失模型時提供清楚友善的繁中下載與放置指引）
+- [x] 健全化異常防禦處理（麥克風缺失/串流失敗、模型權重缺失/損毀、自訂詞庫格式錯誤、剪貼簿與貼上容錯）
+- [x] 實作一鍵系統健康診斷工具 `src/diagnostics.py` 與 CLI 旗標 (`python -m src.main --doctor`)
+- [x] 建立 PyInstaller 自動化打包腳本 `scripts/build.py`（執行檔、獨立 models/、config.json 與 custom_dictionary.json 外置分離）
+- [x] 實機驗證 PyInstaller 二進位執行檔與系統診斷執行正常
+- [x] 撰寫繁體中文純本機部署與操作使用說明書 `README.md`
+- [x] 撰寫測試套件 `tests/test_diagnostics.py`，全專案通過測試 (110 passed in 4.87s, 95% coverage)

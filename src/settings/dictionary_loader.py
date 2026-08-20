@@ -85,3 +85,7 @@ def load_dictionary(dict_path: Path | str = DEFAULT_DICTIONARY_PATH) -> Dictiona
     except Exception as e:
         logger.error("Unexpected error loading dictionary from %s: %s", path, e)
         return DictionaryData()
+
+
+# Alias for explicit naming
+load_custom_dictionary = load_dictionary

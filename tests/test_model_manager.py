@@ -77,7 +77,7 @@ def test_load_model_qwen_not_installed(tmp_path: Path):
     manager = ModelManager(models_dir=tmp_path)
 
     with patch.dict(sys.modules, {"qwen_asr": None}):
-        with pytest.raises(ModelManagerError, match="qwen-asr is not installed"):
+        with pytest.raises(ModelManagerError, match="尚未安裝 qwen-asr"):
             manager.load_model("0.6b")
         assert manager.status == ModelStatus.ERROR
         assert manager.last_error is not None
@@ -92,7 +92,7 @@ def test_load_model_exception_handled(tmp_path: Path):
     mock_qwen_module.Qwen3ASRModel = mock_model_cls
 
     with patch.dict(sys.modules, {"qwen_asr": mock_qwen_module}):
-        with pytest.raises(ModelManagerError, match="Failed to load model"):
+        with pytest.raises(ModelManagerError, match="模型載入失敗"):
             manager.load_model("1.7b")
 
         assert manager.status == ModelStatus.ERROR
@@ -147,3 +147,37 @@ def test_unload_model_with_torch_cache_cleaning(tmp_path: Path):
     assert manager.status == ModelStatus.UNLOADED
     mock_torch.cuda.empty_cache.assert_called_once()
     mock_torch.mps.empty_cache.assert_called_once()
+
+
+def test_local_model_directory_precedence(tmp_path: Path):
+    manager = ModelManager(models_dir=tmp_path)
+    local_06b_dir = tmp_path / "0.6b"
+    local_06b_dir.mkdir(parents=True)
+    (local_06b_dir / "config.json").write_text("{}", encoding="utf-8")
+
+    resolved = manager.resolve_model_id("0.6b")
+    assert resolved == str(local_06b_dir)
+
+    status = manager.check_local_model_availability("0.6b")
+    assert status["available"] is True
+    assert status["source"] == "local_dir"
+    assert status["path"] == str(local_06b_dir)
+
+
+def test_hf_cache_model_availability(tmp_path: Path):
+    manager = ModelManager(models_dir=tmp_path)
+    hf_snapshot_dir = tmp_path / "huggingface" / "hub" / "models--Qwen--Qwen3-ASR-0.6B" / "snapshots" / "abc123"
+    hf_snapshot_dir.mkdir(parents=True)
+    (hf_snapshot_dir / "model.safetensors").write_text("fake", encoding="utf-8")
+
+    status = manager.check_local_model_availability("0.6b")
+    assert status["available"] is True
+    assert status["source"] == "hf_cache"
+
+
+def test_offline_guidance_message(tmp_path: Path):
+    manager = ModelManager(models_dir=tmp_path)
+    status = manager.check_local_model_availability("1.7b")
+    assert status["available"] is False
+    assert status["source"] == "remote_hub"
+    assert "純離線部署" in status["guidance"]

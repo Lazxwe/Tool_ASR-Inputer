@@ -77,12 +77,88 @@ class ModelManager:
         """Last encountered error message, if any."""
         return self._last_error
 
-    def resolve_model_id(self, model_identifier: str) -> str:
-        """Resolve a model shortcut (e.g. '0.6b', '1.7b') or local path to a valid model ID."""
+    def get_local_directory(self, model_key: str) -> Path:
+        """Return the expected offline local model folder path (e.g. ./models/0.6b)."""
+        key = model_key.lower().strip()
+        return self.models_dir / key
+
+    def get_hf_cache_directory(self) -> Path:
+        """Return the isolated HuggingFace hub cache directory."""
+        return self.models_dir / "huggingface" / "hub"
+
+    def check_local_model_availability(self, model_identifier: str) -> dict[str, Any]:
+        """Check if the specified model is present locally (offline folder or HF cache).
+
+        Returns:
+            dict containing availability flag, source type, path or repo ID, and guidance notes.
+        """
         key = model_identifier.lower().strip()
+        local_dir = self.get_local_directory(key)
+
+        # 1. Check dedicated offline directory (e.g. ./models/0.6b)
+        if local_dir.is_dir() and any(local_dir.iterdir()):
+            return {
+                "available": True,
+                "source": "local_dir",
+                "path": str(local_dir),
+                "description": f"已於本機目錄找到模型權重 ({local_dir})",
+                "guidance": "純離線模式已就緒",
+            }
+
+        # 2. Check HuggingFace hub snapshot cache
+        repo_id = MODEL_REGISTRY.get(key, model_identifier)
+        hf_cache_dir = self.get_hf_cache_directory()
+        repo_folder_name = f"models--{repo_id.replace('/', '--')}"
+        repo_cache_path = hf_cache_dir / repo_folder_name / "snapshots"
+
+        if repo_cache_path.is_dir() and any(repo_cache_path.iterdir()):
+            return {
+                "available": True,
+                "source": "hf_cache",
+                "path": str(repo_cache_path),
+                "description": f"已於 HuggingFace 快取找到模型 ({repo_cache_path})",
+                "guidance": "本地快取已就緒",
+            }
+
+        # 3. Not found locally
+        return {
+            "available": False,
+            "source": "remote_hub",
+            "path": repo_id,
+            "description": f"本機尚未下載模型 '{key}'",
+            "guidance": self.get_offline_guidance(key),
+        }
+
+    def get_offline_guidance(self, model_key: str) -> str:
+        """Generate friendly Traditional Chinese guidance for placing offline model weights."""
+        key = model_key.lower().strip()
+        repo_id = MODEL_REGISTRY.get(key, f"Qwen/Qwen3-ASR-{key.upper()}")
+        target_dir = self.get_local_directory(key)
+        return (
+            f"未偵測到本地模型 '{key}'。\n"
+            f"【純離線部署】請將 {repo_id} 模型檔案放置於：\n"
+            f"  -> {target_dir}\n"
+            f"【在線自動下載】若具備網路連線，系統推論時將自動下載至專案快取目錄：\n"
+            f"  -> {self.get_hf_cache_directory()}"
+        )
+
+    def resolve_model_id(self, model_identifier: str) -> str:
+        """Resolve a model shortcut or local path to a valid model ID or directory.
+
+        Precedence:
+        1. Local dedicated directory (e.g. ./models/0.6b/) if exists and non-empty.
+        2. Known shortcut in MODEL_REGISTRY (e.g. '0.6b' -> 'Qwen/Qwen3-ASR-0.6B').
+        3. Raw model identifier string.
+        """
+        key = model_identifier.lower().strip()
+        local_dir = self.get_local_directory(key)
+        if local_dir.is_dir() and any(local_dir.iterdir()):
+            logger.info("Using offline local model directory: %s", local_dir)
+            return str(local_dir)
+
         if key in MODEL_REGISTRY:
             return MODEL_REGISTRY[key]
-        # Allow passing full HuggingFace ID or local path directly
+        # Allow passing full HuggingFace ID or explicit local path directly
         return model_identifier
 
     def load_model(self, model_identifier: Optional[str] = None) -> Any:
@@ -104,15 +180,16 @@ class ModelManager:
 
         self._status = ModelStatus.LOADING
         self._last_error = None
-        logger.info("Loading ASR model '%s' (ID: %s)...", target_name, model_id)
+        logger.info("Loading ASR model '%s' (Resolved ID/Path: %s)...", target_name, model_id)
 
         try:
             # Import qwen_asr dynamically
             try:
                 from qwen_asr import Qwen3ASRModel
             except ImportError as ie:
+                guidance = self.get_offline_guidance(target_name)
                 raise ModelManagerError(
-                    f"qwen-asr is not installed. Please install it with 'pip install qwen-asr'. Details: {ie}"
+                    f"尚未安裝 qwen-asr 推論套件 (pip install qwen-asr)。\n{guidance}"
                 ) from ie
 
             device = self.device
@@ -132,7 +209,7 @@ class ModelManager:
             model_instance = Qwen3ASRModel.from_pretrained(
                 model_id,
                 device_map=device if device != "cpu" else None,
-                cache_dir=str(self.models_dir / "huggingface" / "hub"),
+                cache_dir=str(self.get_hf_cache_directory()),
             )
 
             self._current_model_name = target_name
@@ -146,8 +223,9 @@ class ModelManager:
             self._last_error = str(e)
             self._current_model_name = None
             self._current_model_instance = None
+            guidance = self.get_offline_guidance(target_name)
             logger.error("Failed to load model '%s': %s", target_name, e)
-            raise ModelManagerError(f"Failed to load model '{target_name}': {e}") from e
+            raise ModelManagerError(f"模型載入失敗 '{target_name}': {e}\n{guidance}") from e
 
     def unload_model(self) -> None:
         """Release the currently loaded model and reclaim memory/VRAM."""
