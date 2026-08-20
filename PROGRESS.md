@@ -10,7 +10,7 @@
 | :--- | :--- | :--- | :--- |
 | **Phase 1** | **基礎環境與文字核心** | ✅ 已完成 (Completed) | 建立隔離環境、OpenCC 繁中轉換、Custom Dictionary 替換、文字管線與單元測試 (20/20 通過, 93% 覆蓋率) |
 | **Phase 2** | **音訊錄製與 ASR 整合** | ✅ 已完成 (Completed) | `sounddevice` 錄音、Qwen3-ASR (0.6B/1.7B) 本地模型載入與推論整合 (47/47 通過, 97% 覆蓋率) |
-| **Phase 3** | **系統互動與常駐介面** | 待開始 (Pending) | F8 全域按鍵、系統剪貼簿寫入與模擬貼上 (Cmd+V/Ctrl+V)、pystray 常駐選單 |
+| **Phase 3** | **系統互動與常駐介面** | ✅ 已完成 (Completed) | F8 全域按鍵、系統剪貼簿寫入與模擬貼上 (Cmd+V/Ctrl+V)、pystray 常駐選單、應用程式背景調度 (94/94 通過, 95% 覆蓋率) |
 | **Phase 4** | **錯誤防禦與打包分發** | 待開始 (Pending) | 麥克風與模型異常處理、跨平台驗證、PyInstaller 打包驗證 |
 
 ---
@@ -41,12 +41,15 @@
 - [x] 執行測試與覆蓋率檢查確認 100% 通過 (47 passed in 0.49s, 97% coverage)
 
 ### Phase 3: 系統互動與常駐介面 (Phase 3: System Interactions & Tray)
-- [ ] 實作 `src/input/hotkey.py`（F8 全域按鍵監聽）
-- [ ] 實作 `src/input/clipboard.py`（剪貼簿複製封裝）
-- [ ] 實作 `src/input/paste.py`（跨平台模擬貼上，macOS/Windows）
-- [ ] 實作 `src/app/state.py`（狀態機：Idle / Recording / Processing / Error）
-- [ ] 實作 `src/ui/tray.py`（pystray 選單：模型切換、開啟詞庫、離開）
-- [ ] 實作 `src/app/application.py`（主應用程式調度與背景執行緒）
+- [x] 實作 `src/input/hotkey.py`（F8 全域按鍵監聽）
+- [x] 實作 `src/input/clipboard.py`（剪貼簿複製封裝）
+- [x] 實作 `src/input/paste.py`（跨平台模擬貼上，macOS/Windows）
+- [x] 實作 `src/app/state.py`（狀態機：Idle / Recording / Processing / Ready / Error）
+- [x] 實作 `src/ui/tray.py`（pystray 選單：模型切換、開啟詞庫、離開）
+- [x] 實作 `src/app/application.py`（主應用程式調度與背景執行緒）
+- [x] 實作 `src/main.py`（命令列與常駐程式進入點）
+- [x] 撰寫單元與整合測試 `tests/test_clipboard.py`, `tests/test_paste.py`, `tests/test_hotkey.py`, `tests/test_state.py`, `tests/test_tray.py`, `tests/test_application.py`, `tests/test_main.py`
+- [x] 執行測試與覆蓋率檢查確認 100% 通過 (94 passed in 4.82s, 95% coverage)
 
 ### Phase 4: 錯誤防禦與打包分發 (Phase 4: Error Handling & Packaging)
 - [ ] 健全化異常處理（麥克風缺失/權限、模型載入失敗、JSON 損毀）
