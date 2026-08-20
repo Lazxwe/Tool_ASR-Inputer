@@ -17,8 +17,10 @@ class AppConfig:
     model: str = "0.6b"
     hotkey: str = "f8"
     model_dir: str = "./models"
+    sample_rate: int = 16000
+    language: str = "Chinese"
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, str | int]:
         return asdict(self)
 
 
@@ -47,8 +49,16 @@ def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> AppConfig:
 
         hotkey = str(data.get("hotkey", "f8")).lower()
         model_dir = str(data.get("model_dir", "./models"))
+        sample_rate = int(data.get("sample_rate", 16000))
+        language = str(data.get("language", "Chinese"))
 
-        return AppConfig(model=model, hotkey=hotkey, model_dir=model_dir)
+        return AppConfig(
+            model=model,
+            hotkey=hotkey,
+            model_dir=model_dir,
+            sample_rate=sample_rate,
+            language=language,
+        )
 
     except Exception as e:
         logger.warning("Failed to parse config file at %s: %s. Using defaults.", path, e)

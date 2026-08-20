@@ -10,15 +10,28 @@ def test_load_default_when_file_missing(tmp_path: Path):
     assert config.model == "0.6b"
     assert config.hotkey == "f8"
     assert config.model_dir == "./models"
+    assert config.sample_rate == 16000
+    assert config.language == "Chinese"
 
 
 def test_load_valid_config(tmp_path: Path):
     config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps({"model": "1.7b", "hotkey": "f9", "model_dir": "./custom_models"}), encoding="utf-8")
+    config_file.write_text(
+        json.dumps({
+            "model": "1.7b",
+            "hotkey": "f9",
+            "model_dir": "./custom_models",
+            "sample_rate": 8000,
+            "language": "zh",
+        }),
+        encoding="utf-8",
+    )
     config = load_config(config_file)
     assert config.model == "1.7b"
     assert config.hotkey == "f9"
     assert config.model_dir == "./custom_models"
+    assert config.sample_rate == 8000
+    assert config.language == "zh"
 
 
 def test_load_invalid_model_fallback(tmp_path: Path):
@@ -42,10 +55,15 @@ def test_load_config_corrupted_json(tmp_path: Path):
     assert config.model == "0.6b"
 
 
-
 def test_save_and_reload_config(tmp_path: Path):
     config_file = tmp_path / "saved_config.json"
-    original = AppConfig(model="1.7b", hotkey="f8", model_dir="./models")
+    original = AppConfig(
+        model="1.7b",
+        hotkey="f8",
+        model_dir="./models",
+        sample_rate=16000,
+        language="Chinese",
+    )
     success = save_config(original, config_file)
     assert success is True
     assert config_file.is_file()
@@ -54,3 +72,5 @@ def test_save_and_reload_config(tmp_path: Path):
     assert reloaded.model == "1.7b"
     assert reloaded.hotkey == "f8"
     assert reloaded.model_dir == "./models"
+    assert reloaded.sample_rate == 16000
+    assert reloaded.language == "Chinese"

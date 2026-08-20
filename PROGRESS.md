@@ -9,7 +9,7 @@
 | Phase | 名稱 | 狀態 | 核心目標 |
 | :--- | :--- | :--- | :--- |
 | **Phase 1** | **基礎環境與文字核心** | ✅ 已完成 (Completed) | 建立隔離環境、OpenCC 繁中轉換、Custom Dictionary 替換、文字管線與單元測試 (20/20 通過, 93% 覆蓋率) |
-| **Phase 2** | **音訊錄製與 ASR 整合** | 待開始 (Pending) | `sounddevice` 錄音、Qwen3-ASR (0.6B/1.7B) 本地模型載入與推論整合 |
+| **Phase 2** | **音訊錄製與 ASR 整合** | ✅ 已完成 (Completed) | `sounddevice` 錄音、Qwen3-ASR (0.6B/1.7B) 本地模型載入與推論整合 (47/47 通過, 97% 覆蓋率) |
 | **Phase 3** | **系統互動與常駐介面** | 待開始 (Pending) | F8 全域按鍵、系統剪貼簿寫入與模擬貼上 (Cmd+V/Ctrl+V)、pystray 常駐選單 |
 | **Phase 4** | **錯誤防禦與打包分發** | 待開始 (Pending) | 麥克風與模型異常處理、跨平台驗證、PyInstaller 打包驗證 |
 
@@ -34,10 +34,11 @@
 
 
 ### Phase 2: 音訊錄製與 ASR 整合 (Phase 2: Audio & ASR Integration)
-- [ ] 實作 `src/audio/recorder.py`（`sounddevice` + `numpy` 錄音管理）
-- [ ] 實作 `src/asr/model_manager.py`（模型下載路徑隔離至 `./models/`、0.6B/1.7B 載入與釋放）
-- [ ] 實作 `src/asr/qwen_asr.py`（Qwen3-ASR 本地推論介面與繁中 Prompt 配置）
-- [ ] 撰寫音訊與 ASR 介面測試
+- [x] 實作 `src/audio/recorder.py`（`sounddevice` + `numpy` 錄音管理）
+- [x] 實作 `src/asr/model_manager.py`（模型下載路徑隔離至 `./models/`、0.6B/1.7B 載入與釋放）
+- [x] 實作 `src/asr/qwen_asr.py`（Qwen3-ASR 本地推論介面與繁中 Prompt 配置）
+- [x] 撰寫音訊與 ASR 介面測試 `tests/test_audio.py`, `tests/test_model_manager.py`, `tests/test_qwen_asr.py`
+- [x] 執行測試與覆蓋率檢查確認 100% 通過 (47 passed in 0.49s, 97% coverage)
 
 ### Phase 3: 系統互動與常駐介面 (Phase 3: System Interactions & Tray)
 - [ ] 實作 `src/input/hotkey.py`（F8 全域按鍵監聽）

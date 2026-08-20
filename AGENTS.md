@@ -26,8 +26,13 @@ This project is an ultra-minimalist, local-first, cross-platform (macOS / Window
 
 ### 2.1 State-in-Repo (Repository as Single Source of Truth)
 Do not rely on conversational context to track project state or architecture decisions.
-1. **Mandatory Start Step**: At the start of ANY session or task, always inspect [PROGRESS.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/PROGRESS.md), [doc/開發規格.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/doc/%E9%96%8B%E7%99%BC%E8%A6%8F%E6%A0%BC.md), and [doc/推薦技術清單.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/doc/%E6%8E%A8%E8%96%A6%E6%8A%80%E8%A1%93%E6%B8%85%E5%96%AE.md).
-2. **Synchronize Progress**: Whenever a task or phase is completed and verified, update [PROGRESS.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/PROGRESS.md) immediately with checkboxes and verification notes.
+1. **Mandatory Start Step**: At the start of ANY session or task, always inspect:
+   - [PROGRESS.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/PROGRESS.md)
+   - [doc/開發規格.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/doc/%E9%96%8B%E7%99%BC%E8%A6%8F%E6%A0%BC.md)
+   - [doc/推薦技術清單.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/doc/%E6%8E%A8%E8%96%A6%E6%8A%80%E8%A1%93%E6%B8%85%E5%96%AE.md)
+   - [doc/Qwen3-ASR技術規格與整合筆記.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/doc/Qwen3-ASR%E6%8A%80%E8%A1%93%E8%A6%8F%E6%A0%BC%E8%88%87%E6%95%B4%E5%90%88%E7%AD%86%E8%A8%98.md)
+2. **Local Specs First (Zero-Redundant Web Search)**: All model APIs, parameters, audio formats, and integration notes are curated in `doc/Qwen3-ASR技術規格與整合筆記.md`. Do NOT perform redundant web searches for Qwen3-ASR specs; read local documentation directly.
+3. **Synchronize Progress**: Whenever a task or phase is completed and verified, update [PROGRESS.md](file:///Users/lazxwe/Documents/GitHub/Tool_ASR%20Inputer/PROGRESS.md) immediately with checkboxes and verification notes.
 
 ### 2.2 Sub-agent Delegation for Heavy Tasks
 To avoid context pollution in the main conversation thread:
