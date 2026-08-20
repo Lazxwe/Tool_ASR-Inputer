@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "target": "程式",
+      "variants": ["城市"]
+    },
+    {
+      "target": "介面",
+      "variants": ["接口"]
+    },
+    {
+      "target": "影片",
+      "variants": ["視頻"]
+    },
+    {
+      "target": "軟體",
+      "variants": ["軟件"]
+    },
+    {
+      "target": "伺服器",
+      "variants": ["服務器"]
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+"""Application configuration management."""
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_CONFIG_PATH = Path("config.json")
+
+
+@dataclass
+class AppConfig:
+    """Application configuration schema."""
+    model: str = "0.6b"
+    hotkey: str = "f8"
+    model_dir: str = "./models"
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> AppConfig:
+    """Load application configuration from a JSON file.
+
+    Falls back to default config if file is missing or invalid.
+    """
+    path = Path(config_path)
+    if not path.is_file():
+        logger.info("Config file not found at %s. Using default configuration.", path)
+        return AppConfig()
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if not isinstance(data, dict):
+            logger.warning("Config root is not an object. Using defaults.")
+            return AppConfig()
+
+        model = str(data.get("model", "0.6b")).lower()
+        if model not in ("0.6b", "1.7b"):
+            logger.warning("Invalid model '%s' in config. Falling back to '0.6b'.", model)
+            model = "0.6b"
+
+        hotkey = str(data.get("hotkey", "f8")).lower()
+        model_dir = str(data.get("model_dir", "./models"))
+
+        return AppConfig(model=model, hotkey=hotkey, model_dir=model_dir)
+
+    except Exception as e:
+        logger.warning("Failed to parse config file at %s: %s. Using defaults.", path, e)
+        return AppConfig()
+
+
+def save_config(config: AppConfig, config_path: Path | str = DEFAULT_CONFIG_PATH) -> bool:
+    """Save application configuration to a JSON file."""
+    path = Path(config_path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(config.to_dict(), f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        logger.error("Failed to write config file to %s: %s", path, e)
+        return False

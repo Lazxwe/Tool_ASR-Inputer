@@ -1,0 +1,5 @@
+{
+  "model": "0.6b",
+  "hotkey": "f8",
+  "model_dir": "./models"
+}

@@ -1,0 +1,32 @@
+# Virtual Environment (Isolated Environment)
+.venv/
+env/
+venv/
+ENV/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Models and Local Caches (Keep repo clean)
+models/
+.cache/
+hf_cache/
+
+# Test & Type Checking Cache
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.pyright/
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/
+*.spec
+
+# OS Specific
+.DS_Store
+Thumbs.db
