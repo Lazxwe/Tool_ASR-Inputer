@@ -139,8 +139,39 @@ class ModelManager:
             f"【純離線部署】請將 {repo_id} 模型檔案放置於：\n"
             f"  -> {target_dir}\n"
             f"【在線自動下載】若具備網路連線，系統推論時將自動下載至專案快取目錄：\n"
-            f"  -> {self.get_hf_cache_directory()}"
+            f"  -> {self.get_hf_cache_directory()}\n"
+            f"或執行指令預先下載：python -m src.main --download-model {key}"
         )
+
+    def download_model(self, model_identifier: str = "0.6b") -> str:
+        """Explicitly download model weights with real-time progress bar displayed in console."""
+        target_name = model_identifier.lower().strip()
+        repo_id = MODEL_REGISTRY.get(target_name, model_identifier)
+        logger.info("Starting download for model '%s' (HuggingFace Repo: %s)...", target_name, repo_id)
+
+        try:
+            from huggingface_hub import snapshot_download
+            cache_dir = self.get_hf_cache_directory()
+            local_path = snapshot_download(
+                repo_id=repo_id,
+                cache_dir=str(cache_dir),
+                resume_download=True,
+            )
+            logger.info("Model '%s' successfully downloaded to %s", target_name, local_path)
+            return str(local_path)
+        except ImportError:
+            # Fallback via qwen_asr
+            try:
+                from qwen_asr import Qwen3ASRModel
+                model_instance = Qwen3ASRModel.from_pretrained(
+                    repo_id,
+                    cache_dir=str(self.get_hf_cache_directory()),
+                )
+                return str(self.get_hf_cache_directory())
+            except ImportError as ie:
+                raise ModelManagerError(
+                    "請先安裝 huggingface_hub 或 qwen-asr: pip install huggingface_hub qwen-asr"
+                ) from ie
 
     def resolve_model_id(self, model_identifier: str) -> str:
         """Resolve a model shortcut or local path to a valid model ID or directory.

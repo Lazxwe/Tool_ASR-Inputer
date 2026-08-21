@@ -55,6 +55,13 @@ def main() -> int:
         help="Reset config.json to factory defaults (with backup) and exit",
     )
     parser.add_argument(
+        "--download-model", "--download",
+        type=str,
+        default=None,
+        metavar="MODEL",
+        help="Download specified ASR model (e.g. '0.6b' or '1.7b') with progress bar and exit",
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable debug logging",
@@ -63,6 +70,19 @@ def main() -> int:
     args = parser.parse_args()
     setup_logging(verbose=args.verbose)
     logger = logging.getLogger("main")
+
+    # Handle --download-model request
+    if args.download_model:
+        from src.asr.model_manager import ModelManager
+        manager = ModelManager(models_dir=Path(args.config).parent / "models")
+        try:
+            print(f"正在連線 Hugging Face 下載模型 '{args.download_model}' (請稍候)...")
+            path = manager.download_model(args.download_model)
+            print(f"✓ 模型 '{args.download_model}' 下載完成！本地存放路徑:\n  {path}")
+            return 0
+        except Exception as e:
+            print(f"✗ 模型下載失敗: {e}")
+            return 1
 
     # Handle --reset-config request
     if args.reset_config:

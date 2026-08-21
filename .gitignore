@@ -11,8 +11,18 @@ __pycache__/
 
 # Models and Local Caches (Keep repo clean)
 models/
-.cache/
+models/*
+!models/.gitkeep
 hf_cache/
+.cache/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.h5
+*.model
 
 # Test & Type Checking Cache
 .pytest_cache/
