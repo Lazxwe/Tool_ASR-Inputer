@@ -107,6 +107,7 @@ class TrayUI:
         current_model_getter: Callable[[], str],
         on_select_model: Optional[Callable[[str], None]] = None,
         on_reload_dictionary: Optional[Callable[[], None]] = None,
+        on_reset_config: Optional[Callable[[], None]] = None,
         on_quit: Optional[Callable[[], None]] = None,
         dictionary_path: Path | str = "custom_dictionary.json",
     ) -> None:
@@ -114,6 +115,7 @@ class TrayUI:
         self.current_model_getter = current_model_getter
         self.on_select_model = on_select_model
         self.on_reload_dictionary = on_reload_dictionary
+        self.on_reset_config = on_reset_config
         self.on_quit = on_quit
         self.dictionary_path = Path(dictionary_path)
 
@@ -170,6 +172,10 @@ class TrayUI:
             if self.on_reload_dictionary:
                 self.on_reload_dictionary()
 
+        def handle_reset_cfg(icon: pystray.Icon, item: MenuItem) -> None:
+            if self.on_reset_config:
+                self.on_reset_config()
+
         def handle_quit(icon: pystray.Icon, item: MenuItem) -> None:
             if self.on_quit:
                 self.on_quit()
@@ -182,6 +188,7 @@ class TrayUI:
             MenuItem("模型選擇 (Model)", model_submenu),
             MenuItem("開啟詞庫 (Open Dictionary)", handle_open_dict),
             MenuItem("重新載入詞庫 (Reload Dictionary)", handle_reload_dict),
+            MenuItem("重置設定檔 (Reset Config)", handle_reset_cfg),
             Menu.SEPARATOR,
             MenuItem("結束 (Quit)", handle_quit),
         ]

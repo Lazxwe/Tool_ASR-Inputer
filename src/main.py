@@ -50,6 +50,11 @@ def main() -> int:
         help="Run system diagnostic health check and exit",
     )
     parser.add_argument(
+        "--reset-config",
+        action="store_true",
+        help="Reset config.json to factory defaults (with backup) and exit",
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Enable debug logging",
@@ -58,6 +63,21 @@ def main() -> int:
     args = parser.parse_args()
     setup_logging(verbose=args.verbose)
     logger = logging.getLogger("main")
+
+    # Handle --reset-config request
+    if args.reset_config:
+        from src.settings.config import reset_config
+        cfg_path = Path(args.config)
+        success, backup_path = reset_config(cfg_path, backup_old=True)
+        if success:
+            msg = f"✓ 已成功將設定檔 ({cfg_path}) 重置為原廠預設值！"
+            if backup_path:
+                msg += f"\n  舊設定檔已自動備份至: {backup_path}"
+            print(msg)
+            return 0
+        else:
+            print(f"✗ 重置設定檔 ({cfg_path}) 失敗，請檢查檔案權限。")
+            return 1
 
     # Run system diagnosis if --doctor is requested
     if args.doctor:

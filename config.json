@@ -1,5 +1,8 @@
 {
   "model": "0.6b",
   "hotkey": "f8",
-  "model_dir": "./models"
+  "hotkey_mode": "hold",
+  "model_dir": "./models",
+  "sample_rate": 16000,
+  "language": "Chinese"
 }

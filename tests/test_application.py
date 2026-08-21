@@ -57,9 +57,27 @@ def test_app_toggle_recording_lifecycle(tmp_path: Path) -> None:
         assert mock_stop.called
 
     # 3. Toggle during processing is ignored
-    with patch.object(app, "_start_recording") as mock_start2:
+    with patch.object(app, "_start_recording_locked") as mock_start2:
         app.toggle_recording()
         assert not mock_start2.called
+
+
+def test_app_hold_mode_lifecycle(tmp_path: Path) -> None:
+    app = create_mock_app(tmp_path)
+
+    # Press start
+    with patch.object(app.recorder, "start") as mock_start:
+        app._on_press_start()
+        assert app.state_manager.state == AppState.RECORDING
+        assert mock_start.called
+
+    # Release stop
+    mock_audio = np.ones(16000, dtype=np.float32)
+    with patch.object(app.recorder, "stop", return_value=mock_audio) as mock_stop, \
+         patch.object(app, "_process_audio_worker"):
+        app._on_release_stop()
+        assert app.state_manager.state == AppState.PROCESSING
+        assert mock_stop.called
 
 
 def test_app_toggle_recording_start_failure(tmp_path: Path) -> None:
@@ -233,3 +251,14 @@ def test_app_start_and_stop(tmp_path: Path) -> None:
     assert app.hotkey_listener.stop.called
     assert app.tray_ui.stop.called
     assert app.state_manager.state == AppState.IDLE
+
+
+def test_app_reset_configuration(tmp_path: Path) -> None:
+    app = create_mock_app(tmp_path)
+    app._is_running = True
+    app.hotkey_listener = MagicMock()
+
+    app.reset_configuration()
+    assert app.config.model == "0.6b"
+    assert app.config.hotkey == "f8"
+    assert app.hotkey_listener is not None

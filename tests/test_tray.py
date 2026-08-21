@@ -84,8 +84,14 @@ def test_tray_ui_build_menu_and_callbacks(tmp_path: Path) -> None:
     menu.items[5]._action(tray._icon, menu.items[5])
     assert len(reloaded_dict) == 1
 
+    # Reset config item
+    reset_called = []
+    tray.on_reset_config = lambda: reset_called.append(True)
+    menu.items[6]._action(tray._icon, menu.items[6])
+    assert len(reset_called) == 1
+
     # Quit item
-    menu.items[7]._action(tray._icon, menu.items[7])
+    menu.items[8]._action(tray._icon, menu.items[8])
     assert len(quitted) == 1
 
 

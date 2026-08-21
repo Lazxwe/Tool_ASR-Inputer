@@ -62,7 +62,10 @@ class VoiceInputApp:
         if self.enable_hotkey:
             self.hotkey_listener = HotkeyListener(
                 hotkey=self.config.hotkey,
+                mode=self.config.hotkey_mode,
                 on_triggered=self.toggle_recording,
+                on_press_start=self._on_press_start,
+                on_release_stop=self._on_release_stop,
             )
 
         # 7. Tray UI
@@ -73,6 +76,7 @@ class VoiceInputApp:
                 current_model_getter=lambda: self.config.model,
                 on_select_model=self.switch_model,
                 on_reload_dictionary=self.reload_dictionary,
+                on_reset_config=self.reset_configuration,
                 on_quit=self.stop,
                 dictionary_path=self.dictionary_path,
             )
@@ -96,19 +100,31 @@ class VoiceInputApp:
         thread.start()
 
     def toggle_recording(self) -> None:
-        """Toggle recording state when hotkey (F8) is triggered."""
+        """Toggle recording state when hotkey is triggered in toggle mode."""
         with self._lock:
             current_state = self.state_manager.state
 
             if current_state in (AppState.IDLE, AppState.READY, AppState.ERROR):
-                self._start_recording()
+                self._start_recording_locked()
             elif current_state == AppState.RECORDING:
-                self._stop_recording_and_process()
+                self._stop_recording_and_process_locked()
             elif current_state == AppState.PROCESSING:
                 logger.info("ASR processing is in progress. Ignoring hotkey toggle.")
 
-    def _start_recording(self) -> None:
-        """Internal helper to start audio capture."""
+    def _on_press_start(self) -> None:
+        """Triggered on hotkey press in hold mode."""
+        with self._lock:
+            if self.state_manager.state in (AppState.IDLE, AppState.READY, AppState.ERROR):
+                self._start_recording_locked()
+
+    def _on_release_stop(self) -> None:
+        """Triggered on hotkey release in hold mode."""
+        with self._lock:
+            if self.state_manager.state == AppState.RECORDING:
+                self._stop_recording_and_process_locked()
+
+    def _start_recording_locked(self) -> None:
+        """Internal helper to start audio capture (must be called with self._lock)."""
         try:
             self.state_manager.set_state(AppState.RECORDING)
             self.recorder.start()
@@ -117,8 +133,8 @@ class VoiceInputApp:
             logger.error("Failed to start audio recording: %s", e)
             self.state_manager.set_state(AppState.ERROR, f"錄音失敗: {e}")
 
-    def _stop_recording_and_process(self) -> None:
-        """Internal helper to stop recording and trigger background ASR pipeline."""
+    def _stop_recording_and_process_locked(self) -> None:
+        """Internal helper to stop recording and trigger background ASR pipeline (must be called with self._lock)."""
         try:
             self.state_manager.set_state(AppState.PROCESSING)
             audio_data = self.recorder.stop()
@@ -207,6 +223,29 @@ class VoiceInputApp:
         logger.info("Reloading custom dictionary from %s...", self.dictionary_path)
         self.pipeline.reload_dictionary(self.dictionary_path)
         logger.info("Dictionary reloaded successfully.")
+
+    def reset_configuration(self) -> None:
+        """Reset configuration file to factory defaults and rebind services."""
+        logger.info("Resetting configuration to factory defaults...")
+        from src.settings.config import reset_config
+        success, backup_path = reset_config(self.config_path, backup_old=True)
+        if success:
+            self.config = load_config(self.config_path)
+            logger.info("Config reset complete. New settings: %s (Backup: %s)", self.config, backup_path)
+            if self.hotkey_listener is not None:
+                self.hotkey_listener.stop()
+                self.hotkey_listener = HotkeyListener(
+                    hotkey=self.config.hotkey,
+                    mode=self.config.hotkey_mode,
+                    on_triggered=self.toggle_recording,
+                    on_press_start=self._on_press_start,
+                    on_release_stop=self._on_release_stop,
+                )
+                if self._is_running:
+                    try:
+                        self.hotkey_listener.start()
+                    except Exception as e:
+                        logger.warning("Could not restart hotkey listener after reset: %s", e)
 
     def start(self) -> None:
         """Start all services (hotkey listener and tray UI)."""
