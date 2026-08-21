@@ -1,0 +1,95 @@
+name: Build & Release Packages
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: Tool_ASR_Inputer_Windows_x64.zip
+            zip_cmd: Compress-Archive -Path dist/Tool_ASR_Inputer -DestinationPath Tool_ASR_Inputer_Windows_x64.zip
+            zip_file: Tool_ASR_Inputer_Windows_x64.zip
+          - os: macos-latest
+            artifact_name: Tool_ASR_Inputer_macOS.zip
+            zip_cmd: cd dist && zip -r ../Tool_ASR_Inputer_macOS.zip Tool_ASR_Inputer && cd ..
+            zip_file: Tool_ASR_Inputer_macOS.zip
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Run Test Suite
+        run: |
+          pytest
+
+      - name: Build Executable via PyInstaller
+        run: |
+          python scripts/build.py
+
+      - name: Package Distribution (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/Tool_ASR_Inputer -DestinationPath Tool_ASR_Inputer_Windows_x64.zip
+
+      - name: Package Distribution (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          cd dist && zip -r ../Tool_ASR_Inputer_macOS.zip Tool_ASR_Inputer && cd ..
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.zip_file }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Flatten Artifacts for Release
+        run: |
+          mkdir -p ./release_files
+          find ./artifacts -name "*.zip" -exec cp {} ./release_files/ \;
+          ls -la ./release_files
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./release_files/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

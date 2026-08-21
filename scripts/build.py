@@ -99,12 +99,20 @@ def package_distribution() -> None:
 
     print("Copying external configuration files to dist...")
 
-    # Copy config.json and custom_dictionary.json
-    for filename in ("config.json", "custom_dictionary.json", "README.md"):
+    # Copy config.json (or config.example.json fallback), custom_dictionary.json, and README.md
+    if (PROJECT_ROOT / "config.json").exists():
+        shutil.copy2(PROJECT_ROOT / "config.json", target_dist_dir / "config.json")
+        print("  -> Copied config.json")
+    elif (PROJECT_ROOT / "config.example.json").exists():
+        shutil.copy2(PROJECT_ROOT / "config.example.json", target_dist_dir / "config.json")
+        print("  -> Copied config.example.json as config.json")
+
+    for filename in ("custom_dictionary.json", "README.md"):
         src_file = PROJECT_ROOT / filename
         if src_file.exists():
             shutil.copy2(src_file, target_dist_dir / filename)
             print(f"  -> Copied {filename}")
+
 
     # Prepare models directory structure in distribution
     dist_models_dir = target_dist_dir / "models"
