@@ -13,9 +13,10 @@ DEFAULT_DICTIONARY_PATH = Path("custom_dictionary.json")
 
 @dataclass
 class DictionaryEntry:
-    """A single custom dictionary entry (Target ← Variants)."""
+    """A single custom dictionary entry (Target ← Variants, with optional Context keywords)."""
     target: str
     variants: list[str] = field(default_factory=list)
+    context: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -74,9 +75,24 @@ def load_dictionary(dict_path: Path | str = DEFAULT_DICTIONARY_PATH) -> Dictiona
                 v.strip() for v in raw_variants if isinstance(v, str) and v.strip()
             ]
 
-            parsed_entries.append(DictionaryEntry(target=target.strip(), variants=clean_variants))
+            raw_context = item.get("context", [])
+            if not isinstance(raw_context, list):
+                logger.warning("Entry '%s' has non-list context. Defaulting to empty context.", target)
+                raw_context = []
 
-        logger.info("Loaded %d dictionary entries from %s", len(parsed_entries), path)
+            clean_context: list[str] = [
+                c.strip() for c in raw_context if isinstance(c, str) and c.strip()
+            ]
+
+            parsed_entries.append(
+                DictionaryEntry(
+                    target=target.strip(),
+                    variants=clean_variants,
+                    context=clean_context,
+                )
+            )
+
+        logger.info("Loaded %d dictionary entries from %s (version: %d)", len(parsed_entries), path, version)
         return DictionaryData(version=version, entries=parsed_entries)
 
     except json.JSONDecodeError as e:

@@ -12,23 +12,33 @@ def test_load_dictionary_when_missing(tmp_path: Path):
     assert len(dict_data.entries) == 0
 
 
-def test_load_dictionary_valid(tmp_path: Path):
-    dict_file = tmp_path / "dict.json"
+def test_load_dictionary_valid_v2(tmp_path: Path):
+    dict_file = tmp_path / "dict_v2.json"
     dict_file.write_text(json.dumps({
-        "version": 1,
+        "version": 2,
         "entries": [
-            {"target": "程式", "variants": ["城市", "乘勢"]},
-            {"target": "介面", "variants": ["接口"]}
+            {
+                "target": "程式",
+                "variants": ["城市", "乘勢"],
+                "context": ["寫", "開發", "軟體"]
+            },
+            {
+                "target": "介面",
+                "variants": ["接口"],
+                "context": []
+            }
         ]
     }), encoding="utf-8")
 
     dict_data = load_dictionary(dict_file)
-    assert dict_data.version == 1
+    assert dict_data.version == 2
     assert len(dict_data.entries) == 2
     assert dict_data.entries[0].target == "程式"
     assert dict_data.entries[0].variants == ["城市", "乘勢"]
+    assert dict_data.entries[0].context == ["寫", "開發", "軟體"]
     assert dict_data.entries[1].target == "介面"
     assert dict_data.entries[1].variants == ["接口"]
+    assert dict_data.entries[1].context == []
 
 
 def test_load_dictionary_corrupted_json(tmp_path: Path):

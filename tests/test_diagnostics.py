@@ -137,13 +137,21 @@ def test_doctor_check_custom_dictionary(tmp_path: Path):
     items = doctor.check_custom_dictionary()
     assert items[0].passed is False
 
-    # 2. Valid dictionary
+    # 2. Valid dictionary v1
     dict_file.write_text('{"version": 1, "entries": [{"target": "程式", "variants": ["城市"]}]}', encoding="utf-8")
     items = doctor.check_custom_dictionary()
     assert items[0].passed is True
     assert "有效詞條 1 組" in items[0].details
 
-    # 3. Empty dictionary
+    # 3. Valid dictionary v2 with context breakdown
+    dict_file.write_text('{"version": 2, "entries": [{"target": "程式", "variants": ["城市"], "context": ["寫"]}, {"target": "介面", "variants": ["接口"]}]}', encoding="utf-8")
+    items = doctor.check_custom_dictionary()
+    assert items[0].passed is True
+    assert "無條件替換: 1 組" in items[0].details
+    assert "上下文感知: 1 組" in items[0].details
+    assert "版本: v2" in items[0].details
+
+    # 4. Empty dictionary
     dict_file.write_text('{"version": 1, "entries": []}', encoding="utf-8")
     items = doctor.check_custom_dictionary()
     assert items[0].passed is True

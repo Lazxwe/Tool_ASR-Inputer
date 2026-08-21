@@ -208,11 +208,19 @@ class SystemDoctor:
         dict_obj = load_custom_dictionary(self.dictionary_path)
         if dict_obj.entries:
             total_variants = sum(len(e.variants) for e in dict_obj.entries)
+            context_entries = sum(1 for e in dict_obj.entries if e.context)
+            exact_entries = len(dict_obj.entries) - context_entries
+            
+            if context_entries > 0:
+                breakdown = f"（無條件替換: {exact_entries} 組, 上下文感知: {context_entries} 組）"
+            else:
+                breakdown = ""
+                
             results.append(DiagnosticItem(
                 category="自訂詞庫 (Custom Dictionary)",
                 name="詞庫結構與解析",
                 passed=True,
-                details=f"有效詞條 {len(dict_obj.entries)} 組，共計 {total_variants} 個替換詞（版本: v{dict_obj.version}）",
+                details=f"有效詞條 {len(dict_obj.entries)} 組{breakdown}，共計 {total_variants} 個替換詞（版本: v{dict_obj.version}）",
             ))
         else:
             results.append(DiagnosticItem(

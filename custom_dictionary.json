@@ -1,25 +1,30 @@
 {
-  "version": 1,
+  "version": 2,
   "entries": [
     {
       "target": "程式",
-      "variants": ["城市"]
+      "variants": ["城市", "成式"],
+      "context": ["寫", "修改", "開發", "執行", "編譯", "代碼", "軟體", "專案", "除錯", "測試", "跑"]
     },
     {
       "target": "介面",
-      "variants": ["接口"]
+      "variants": ["接口"],
+      "context": []
     },
     {
       "target": "影片",
-      "variants": ["視頻"]
+      "variants": ["視頻"],
+      "context": []
     },
     {
       "target": "軟體",
-      "variants": ["軟件"]
+      "variants": ["軟件"],
+      "context": []
     },
     {
       "target": "伺服器",
-      "variants": ["服務器"]
+      "variants": ["服務器"],
+      "context": []
     }
   ]
 }
