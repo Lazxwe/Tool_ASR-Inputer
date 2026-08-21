@@ -1,6 +1,7 @@
 """Unit and integration tests for Model Download Notification & Hotkey Guard (Phase 6)."""
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from pathlib import Path
@@ -139,12 +140,14 @@ def test_model_manager_download_with_callback(tmp_path: Path) -> None:
     def on_progress(pct: float, msg: str) -> None:
         progress_updates.append((pct, msg))
 
-    with patch("huggingface_hub.snapshot_download") as mock_hf_download:
-        mock_hf_download.return_value = str(tmp_path / "hf_snapshot")
+    mock_hf_module = MagicMock()
+    mock_hf_module.snapshot_download.return_value = str(tmp_path / "hf_snapshot")
+
+    with patch.dict(sys.modules, {"huggingface_hub": mock_hf_module}):
         res = mgr.download_model("0.6b", progress_callback=on_progress)
 
         assert res == str(tmp_path / "hf_snapshot")
-        mock_hf_download.assert_called_once()
+        mock_hf_module.snapshot_download.assert_called_once()
         assert len(progress_updates) >= 2
         assert progress_updates[0][0] == 0.0
         assert progress_updates[-1][0] == 100.0
@@ -155,15 +158,21 @@ def test_model_manager_load_model_triggers_download_if_missing(tmp_path: Path) -
     mgr = ModelManager(models_dir=tmp_path)
     progress_calls = []
 
-    with patch.object(mgr, "check_local_model_availability", return_value={"available": False}):
-        with patch.object(mgr, "download_model") as mock_dl:
-            with patch("qwen_asr.Qwen3ASRModel.from_pretrained") as mock_from_pretrained:
-                mock_from_pretrained.return_value = MagicMock()
+    mock_qwen_module = MagicMock()
+    mock_model_cls = MagicMock()
+    mock_instance = MagicMock()
+    mock_model_cls.from_pretrained.return_value = mock_instance
+    mock_qwen_module.Qwen3ASRModel = mock_model_cls
+
+    with patch.dict(sys.modules, {"qwen_asr": mock_qwen_module}):
+        with patch.object(mgr, "check_local_model_availability", return_value={"available": False}):
+            with patch.object(mgr, "download_model") as mock_dl:
                 model = mgr.load_model("0.6b", on_download_progress=lambda p, m: progress_calls.append(p))
 
                 mock_dl.assert_called_once()
                 assert mgr.status == ModelStatus.READY
-                assert model is not None
+                assert model is mock_instance
+
 
 
 def test_switch_model_with_download_notifications(tmp_path: Path) -> None:
