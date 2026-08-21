@@ -32,6 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['/Users/lazxwe/Documents/GitHub/Tool_ASR Inputer/assets/icon.ico'],
 )
 coll = COLLECT(
     exe,

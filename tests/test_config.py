@@ -13,6 +13,8 @@ def test_load_default_when_file_missing(tmp_path: Path):
     assert config.model_dir == "./models"
     assert config.sample_rate == 16000
     assert config.language == "Chinese"
+    assert config.device == "auto"
+    assert config.prompt_cuda_download is True
 
 
 def test_load_valid_config(tmp_path: Path):
@@ -25,6 +27,8 @@ def test_load_valid_config(tmp_path: Path):
             "model_dir": "./custom_models",
             "sample_rate": 8000,
             "language": "zh",
+            "device": "cuda",
+            "prompt_cuda_download": False,
         }),
         encoding="utf-8",
     )
@@ -35,6 +39,8 @@ def test_load_valid_config(tmp_path: Path):
     assert config.model_dir == "./custom_models"
     assert config.sample_rate == 8000
     assert config.language == "zh"
+    assert config.device == "cuda"
+    assert config.prompt_cuda_download is False
 
 
 def test_load_invalid_model_fallback(tmp_path: Path):

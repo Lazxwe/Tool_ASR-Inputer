@@ -14,6 +14,7 @@
 | **Phase 4** | **錯誤防禦與打包分發** | ✅ 已完成 (Completed) | 純本機模型檢測與引導、異常防禦（麥克風/模型/詞庫）、一鍵系統診斷 (`--doctor`)、PyInstaller 分發打包與繁中部署手冊 (117/117 通過, 94% 覆蓋率) |
 | **Phase 5** | **上下文感知同音詞校正** | ✅ 已完成 (Completed) | Level 2 Context-Aware Dictionary（前後文條件比對，如「寫+城市」->「寫+程式」，但「台北是一個城市」不誤替換）、自訂詞庫 v2 格式升級與單元測試 (126/126 通過, 92% 覆蓋率) |
 | **Phase 6** | **模型下載感知與原生通知** | ✅ 已完成 (Completed) | 跨平台原生系統通知（macOS / Windows）、`AppState.DOWNLOADING` 狀態管理、下載中 F8 觸發防禦攔截與進度即時反饋 (145/145 通過, 92% 覆蓋率) |
+| **Phase 7** | **Windows 動態 CUDA 加速與裝置切換** | ✅ 已完成 (Completed) | Windows NVIDIA 顯卡自動偵測、按需動態下載 1.2GB CUDA 加速套件、極簡零認知選單（Mac/無N卡自動隱藏選單）、即時熱切換 CPU/GPU 顯存釋放 (161/161 通過) |
 
 ---
 
@@ -76,4 +77,15 @@
 - [x] 在 `src/app/application.py` 實作下載期間 F8 熱鍵攔截與提示防禦（拒絕空錄音與推論）
 - [x] 串接 `src/ui/tray.py` 托盤圖示與懸停提示文字動態反映下載進度
 - [x] 撰寫單元與防禦測試 `tests/test_notification.py` 與 `tests/test_download_guard.py` (全專案 145/145 通過, 92% 覆蓋率)
+
+### Phase 7: Windows 動態 CUDA 加速套件管理與運算裝置切換 (Phase 7: On-Demand CUDA Addon & Device Hot-Switching)
+- [x] 實作跨平台硬體偵測模組 `src/hardware/gpu_detector.py`（NVIDIA GPU 實體檢測、顯存容量辨識、PyTorch CUDA 就緒檢測與 Mac Apple Silicon MPS 適配）
+- [x] 實作 Windows 獨立 CUDA 依賴管理器 `src/asr/cuda_manager.py`（按需下載約 1.2GB 套件、解壓至 `./cuda_addon/`、`os.add_dll_directory` 動態註冊與磁碟空間釋放）
+- [x] 擴充 `src/settings/config.py` 與 `config.json` 支援 `device: "auto" | "cuda" | "mps" | "cpu"` 與 `prompt_cuda_download: bool`
+- [x] 在 `src/asr/model_manager.py` 實作 `resolve_device` 與 `switch_device`（支援執行中熱切換、呼叫 `torch.cuda.empty_cache()` 與 `gc.collect()` 100% 歸還顯存）
+- [x] 實作極簡零認知負擔托盤選單 `src/ui/tray.py`（Mac 用戶與 Windows 無 N 卡用戶自動隱藏選單；僅有 Windows N 卡用戶顯示「運算裝置」切換選項）
+- [x] 在 `src/app/application.py` 整合啟動時友善提示與切換裝置時的系統通知提示
+- [x] 健全化系統診斷工具 `src/diagnostics.py`，完整反映運算加速裝置與 CUDA 擴充包安裝狀態
+- [x] 撰寫單元測試 `tests/test_gpu_detector.py`, `tests/test_cuda_manager.py` 並擴充現有測試套件（全專案 161/161 測試通過）
+
 

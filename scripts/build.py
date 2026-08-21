@@ -85,6 +85,16 @@ def run_pyinstaller() -> None:
                 print(f"Found and bundling python3.dll: {dll_path}")
                 break
 
+    # Icon configuration
+    ico_path = PROJECT_ROOT / "assets" / "icon.ico"
+    png_path = PROJECT_ROOT / "assets" / "icon.png"
+    if ico_path.exists():
+        cmd.append(f"--icon={ico_path}")
+        print(f"Bundling executable icon: {ico_path}")
+    elif png_path.exists():
+        cmd.append(f"--icon={png_path}")
+        print(f"Bundling executable icon: {png_path}")
+
     # Platform-specific hidden imports
     current_os = platform.system().lower()
     if "darwin" in current_os:
@@ -138,6 +148,13 @@ def package_distribution() -> None:
         if src_file.exists():
             shutil.copy2(src_file, target_dist_dir / filename)
             print(f"  -> Copied {filename}")
+
+    # Copy assets directory (icons)
+    assets_dir = PROJECT_ROOT / "assets"
+    if assets_dir.exists():
+        target_assets = target_dist_dir / "assets"
+        shutil.copytree(assets_dir, target_assets, dirs_exist_ok=True)
+        print(f"  -> Copied assets directory to {target_assets}")
 
 
     # Prepare models directory structure in distribution

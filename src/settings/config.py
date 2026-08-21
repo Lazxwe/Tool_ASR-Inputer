@@ -20,8 +20,11 @@ class AppConfig:
     model_dir: str = "./models"
     sample_rate: int = 16000
     language: str = "Chinese"
+    device: str = "auto"  # 'auto', 'cuda', 'mps', 'cpu'
+    prompt_cuda_download: bool = True  # Windows 偵測到 NVIDIA 顯卡且無 CUDA 時是否主動詢問
+    cuda_addon_url: str = ""  # 自訂 CUDA 擴充包下載 URL (預設留空自動解析)
 
-    def to_dict(self) -> dict[str, str | int]:
+    def to_dict(self) -> dict[str, str | int | bool]:
         return asdict(self)
 
 
@@ -58,6 +61,13 @@ def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> AppConfig:
         sample_rate = int(data.get("sample_rate", 16000))
         language = str(data.get("language", "Chinese"))
 
+        raw_device = str(data.get("device", "auto")).lower().strip()
+        valid_devices = ("auto", "cuda", "mps", "cpu")
+        device = raw_device if raw_device in valid_devices else "auto"
+
+        prompt_cuda_download = bool(data.get("prompt_cuda_download", True))
+        cuda_addon_url = str(data.get("cuda_addon_url", ""))
+
         return AppConfig(
             model=model,
             hotkey=hotkey,
@@ -65,6 +75,9 @@ def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> AppConfig:
             model_dir=model_dir,
             sample_rate=sample_rate,
             language=language,
+            device=device,
+            prompt_cuda_download=prompt_cuda_download,
+            cuda_addon_url=cuda_addon_url,
         )
 
     except json.JSONDecodeError as jde:

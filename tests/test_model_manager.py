@@ -206,3 +206,44 @@ def test_offline_guidance_message(tmp_path: Path):
     assert status["available"] is False
     assert status["source"] == "remote_hub"
     assert "純離線部署" in status["guidance"]
+
+
+def test_resolve_device(tmp_path: Path):
+    manager = ModelManager(models_dir=tmp_path)
+
+    # Explicit CPU
+    assert manager.resolve_device("cpu") == "cpu"
+
+    # CUDA
+    mock_torch = MagicMock()
+    mock_torch.cuda.is_available.return_value = True
+    with patch.dict(sys.modules, {"torch": mock_torch}):
+        assert manager.resolve_device("cuda") == "cuda:0"
+        assert manager.resolve_device("auto") == "cuda:0"
+
+    # MPS
+    mock_torch_mps = MagicMock()
+    mock_torch_mps.cuda.is_available.return_value = False
+    mock_torch_mps.backends.mps.is_available.return_value = True
+    with patch.dict(sys.modules, {"torch": mock_torch_mps}):
+        assert manager.resolve_device("mps") == "mps"
+        assert manager.resolve_device("auto") == "mps"
+
+
+def test_switch_device(tmp_path: Path):
+    manager = ModelManager(models_dir=tmp_path)
+    manager._current_model_name = "0.6b"
+    manager._current_model_instance = MagicMock()
+    manager._status = ModelStatus.READY
+
+    mock_qwen = MagicMock()
+    mock_cls = MagicMock()
+    mock_instance = MagicMock()
+    mock_cls.from_pretrained.return_value = mock_instance
+    mock_qwen.Qwen3ASRModel = mock_cls
+
+    with patch.dict(sys.modules, {"qwen_asr": mock_qwen}):
+        manager.switch_device("cpu")
+        assert manager.device == "cpu"
+        assert manager.current_model is mock_instance
+

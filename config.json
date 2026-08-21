@@ -1,5 +1,7 @@
 {
   "model": "0.6b",
+  "device": "auto",
+  "prompt_cuda_download": true,
   "hotkey": "ctrl_r",
   "hotkey_mode": "hold",
   "model_dir": "./models",

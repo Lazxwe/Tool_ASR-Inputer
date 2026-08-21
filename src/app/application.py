@@ -55,6 +55,7 @@ class VoiceInputApp:
         self.model_manager = ModelManager(
             models_dir=self.config.model_dir,
             default_model=self.config.model,
+            device=self.config.device,
         )
         self.asr_engine = QwenASREngine(model_manager=self.model_manager)
 
@@ -79,7 +80,9 @@ class VoiceInputApp:
             self.tray_ui = TrayUI(
                 state_manager=self.state_manager,
                 current_model_getter=lambda: self.config.model,
+                current_device_getter=lambda: self.config.device,
                 on_select_model=self.switch_model,
+                on_select_device=self.switch_device,
                 on_reload_dictionary=self.reload_dictionary,
                 on_reset_config=self.reset_configuration,
                 on_quit=self.stop,
@@ -267,6 +270,53 @@ class VoiceInputApp:
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def switch_device(self, device_key: str) -> None:
+        """Switch computation device (e.g. 'auto', 'cuda', 'cpu') and hot-reload model."""
+        target = device_key.lower().strip()
+        if target not in ("auto", "cuda", "mps", "cpu"):
+            logger.warning("Unsupported device key '%s'.", target)
+            return
+
+        logger.info("Switching execution device to '%s'...", target)
+        self.config.device = target
+        save_config(self.config, self.config_path)
+
+        def worker() -> None:
+            # If target is cuda on Windows but CUDA addon is not installed and torch has no cuda
+            import platform
+            from src.hardware.gpu_detector import is_torch_cuda_ready
+            from src.asr.cuda_manager import CUDAManager
+            cuda_mgr = CUDAManager(download_url=self.config.cuda_addon_url)
+
+            if target in ("cuda", "cuda:0") and platform.system().lower() == "windows":
+                if not is_torch_cuda_ready() and not cuda_mgr.is_addon_installed():
+                    logger.info("CUDA addon is required for GPU mode on Windows. Starting download...")
+                    self.notifier.send("📦 正在下載 CUDA 加速套件 (約 1.2 GB)，請稍候...")
+
+                    def on_progress(pct: float, downloaded: int, total: int) -> None:
+                        self.state_manager.set_download_progress(pct, f"下載 CUDA 依賴 ({pct:.0f}%)")
+
+                    self.state_manager.set_state(AppState.DOWNLOADING)
+                    success = cuda_mgr.download_and_install(progress_callback=on_progress)
+                    if not success:
+                        self.state_manager.set_state(AppState.ERROR, "CUDA 依賴套件下載失敗")
+                        self.notifier.send("❌ CUDA 加速套件下載失敗，請檢查網路連線。")
+                        return
+
+            try:
+                self.state_manager.set_state(AppState.PROCESSING)
+                self.model_manager.switch_device(target)
+                self.state_manager.set_state(AppState.READY)
+                device_name = "自動偵測" if target == "auto" else ("NVIDIA GPU (顯存)" if target == "cuda" else "CPU (一般記憶體)")
+                logger.info("Successfully switched device to '%s'.", target)
+                self.notifier.send(f"🎉 已成功切換運算裝置至【{device_name}】！")
+            except Exception as e:
+                logger.error("Failed to switch device to '%s': %s", target, e)
+                self.state_manager.set_state(AppState.ERROR, f"切換裝置失敗: {e}")
+                self.notifier.send(f"❌ 切換運算裝置至 '{target}' 失敗: {e}")
+
+        threading.Thread(target=worker, daemon=True).start()
+
     def reload_dictionary(self) -> None:
         """Reload custom dictionary file and update text processing pipeline."""
         logger.info("Reloading custom dictionary from %s...", self.dictionary_path)
@@ -311,6 +361,28 @@ class VoiceInputApp:
             self.tray_ui.start(detached=True)
 
         logger.info("Tool_ASR Inputer is ready and running.")
+        self._check_initial_cuda_prompt()
+
+    def _check_initial_cuda_prompt(self) -> None:
+        """On Windows, check if NVIDIA GPU is present without CUDA runtime and notify user."""
+        import platform
+        if platform.system().lower() != "windows" or not self.config.prompt_cuda_download:
+            return
+
+        def check_worker() -> None:
+            import time
+            time.sleep(2.0)  # Wait for tray to initialize
+            from src.hardware.gpu_detector import detect_nvidia_gpu, is_torch_cuda_ready
+            from src.asr.cuda_manager import CUDAManager
+            gpu_info = detect_nvidia_gpu()
+            cuda_mgr = CUDAManager()
+            if gpu_info and not is_torch_cuda_ready() and not cuda_mgr.is_addon_installed():
+                logger.info("Detected NVIDIA GPU '%s' on Windows without CUDA addon.", gpu_info)
+                self.notifier.send(
+                    f"🚀 偵測到 {gpu_info.name}！\n可在右下角選單「運算裝置」下載 1.2GB 加速套件以啟用 GPU 極速辨識。"
+                )
+
+        threading.Thread(target=check_worker, daemon=True).start()
 
     def stop(self) -> None:
         """Stop all services and cleanly dismantle background threads."""

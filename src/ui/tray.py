@@ -5,6 +5,7 @@ import logging
 import os
 import platform
 import subprocess
+import sys
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -23,8 +24,53 @@ except Exception:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
+def find_app_icon_path() -> Optional[Path]:
+    """Locate assets/icon.png in project directory or frozen bundle."""
+    candidates = [
+        Path("assets/icon.png"),
+        Path(__file__).resolve().parent.parent.parent / "assets" / "icon.png",
+        Path(sys.executable).parent / "assets" / "icon.png" if getattr(sys, "frozen", False) else None,
+    ]
+    for c in candidates:
+        if c and c.is_file():
+            return c
+    return None
+
+
 def create_status_icon(state: AppState, size: int = 64) -> Image.Image:
-    """Generate a high-contrast tray icon representing the current application state."""
+    """Generate a high-contrast tray icon representing the current application state.
+
+    Uses assets/icon.png as base if available, with state badges overlaid.
+    """
+    icon_path = find_app_icon_path()
+    if icon_path:
+        try:
+            base_img = Image.open(icon_path).convert("RGBA")
+            image = base_img.resize((size, size), Image.Resampling.LANCZOS)
+            draw = ImageDraw.Draw(image)
+
+            # Overlay status badge if in active non-ready state
+            if state != AppState.READY and state != AppState.IDLE:
+                badge_colors = {
+                    AppState.RECORDING: "#D32F2F",    # Vivid Red
+                    AppState.PROCESSING: "#F57C00",   # Amber/Orange
+                    AppState.DOWNLOADING: "#7C4DFF",  # Vivid Purple
+                    AppState.ERROR: "#757575",        # Neutral Gray
+                }
+                color = badge_colors.get(state, "#1976D2")
+                badge_r = max(size // 5, 6)
+                cx, cy = size - badge_r - 2, size - badge_r - 2
+                draw.ellipse(
+                    [(cx - badge_r, cy - badge_r), (cx + badge_r, cy + badge_r)],
+                    fill=color,
+                    outline="#FFFFFF",
+                    width=2,
+                )
+            return image
+        except Exception as e:
+            logger.debug("Could not load app icon image: %s. Falling back to procedural.", e)
+
+    # Procedural fallback icon
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
 
@@ -51,29 +97,24 @@ def create_status_icon(state: AppState, size: int = 64) -> Image.Image:
     # Draw inner symbol / dot
     inner_pad = size // 3
     if state == AppState.RECORDING:
-        # Inner white solid circle for recording
         draw.ellipse(
             [(inner_pad, inner_pad), (size - inner_pad, size - inner_pad)],
             fill="#FFFFFF",
         )
     elif state == AppState.PROCESSING:
-        # Inner square for processing
         draw.rectangle(
             [(inner_pad, inner_pad), (size - inner_pad, size - inner_pad)],
             fill="#FFFFFF",
         )
     elif state == AppState.DOWNLOADING:
-        # Downward arrow for downloading
         mid_x = size // 2
         draw.line([(mid_x, inner_pad), (mid_x, size - inner_pad)], fill="#FFFFFF", width=3)
         draw.line([(inner_pad + 2, mid_x + 2), (mid_x, size - inner_pad)], fill="#FFFFFF", width=3)
         draw.line([(size - inner_pad - 2, mid_x + 2), (mid_x, size - inner_pad)], fill="#FFFFFF", width=3)
     elif state == AppState.ERROR:
-        # Cross for error
         draw.line([(inner_pad, inner_pad), (size - inner_pad, size - inner_pad)], fill="#FFFFFF", width=3)
         draw.line([(inner_pad, size - inner_pad), (size - inner_pad, inner_pad)], fill="#FFFFFF", width=3)
     else:
-        # Small inner dot for Ready / Idle
         core_pad = size // 2 - 3
         draw.ellipse(
             [(core_pad, core_pad), (core_pad + 6, core_pad + 6)],
@@ -112,7 +153,9 @@ class TrayUI:
         self,
         state_manager: StateManager,
         current_model_getter: Callable[[], str],
+        current_device_getter: Optional[Callable[[], str]] = None,
         on_select_model: Optional[Callable[[str], None]] = None,
+        on_select_device: Optional[Callable[[str], None]] = None,
         on_reload_dictionary: Optional[Callable[[], None]] = None,
         on_reset_config: Optional[Callable[[], None]] = None,
         on_quit: Optional[Callable[[], None]] = None,
@@ -120,7 +163,9 @@ class TrayUI:
     ) -> None:
         self.state_manager = state_manager
         self.current_model_getter = current_model_getter
+        self.current_device_getter = current_device_getter or (lambda: "auto")
         self.on_select_model = on_select_model
+        self.on_select_device = on_select_device
         self.on_reload_dictionary = on_reload_dictionary
         self.on_reset_config = on_reset_config
         self.on_quit = on_quit
@@ -133,6 +178,7 @@ class TrayUI:
         """Construct the pystray menu items matching the project specification."""
         current_state = self.state_manager.state
         current_model = self.current_model_getter().lower()
+        current_device = self.current_device_getter().lower()
 
         # Status text
         if current_state == AppState.DOWNLOADING:
@@ -176,6 +222,55 @@ class TrayUI:
             ),
         )
 
+        # Device selection submenu (Only displayed on Windows with NVIDIA GPU)
+        device_submenu = None
+        from src.hardware.gpu_detector import should_show_device_menu
+        if should_show_device_menu():
+            def is_auto_selected(item: MenuItem) -> bool:
+                return self.current_device_getter().lower() == "auto"
+
+            def is_cpu_selected(item: MenuItem) -> bool:
+                return self.current_device_getter().lower() == "cpu"
+
+            def is_gpu_selected(item: MenuItem) -> bool:
+                return self.current_device_getter().lower() in ("cuda", "cuda:0")
+
+            def set_device_auto(icon: pystray.Icon, item: MenuItem) -> None:
+                if self.on_select_device:
+                    self.on_select_device("auto")
+                self.refresh()
+
+            def set_device_cpu(icon: pystray.Icon, item: MenuItem) -> None:
+                if self.on_select_device:
+                    self.on_select_device("cpu")
+                self.refresh()
+
+            def set_device_gpu(icon: pystray.Icon, item: MenuItem) -> None:
+                if self.on_select_device:
+                    self.on_select_device("cuda")
+                self.refresh()
+
+            device_submenu = Menu(
+                MenuItem(
+                    "自動偵測 (Auto)",
+                    set_device_auto,
+                    checked=is_auto_selected,
+                    radio=True,
+                ),
+                MenuItem(
+                    "一般記憶體 (CPU / RAM)",
+                    set_device_cpu,
+                    checked=is_cpu_selected,
+                    radio=True,
+                ),
+                MenuItem(
+                    "顯示卡顯存 (NVIDIA GPU / VRAM)",
+                    set_device_gpu,
+                    checked=is_gpu_selected,
+                    radio=True,
+                ),
+            )
+
         def handle_open_dict(icon: pystray.Icon, item: MenuItem) -> None:
             open_file_in_system_editor(self.dictionary_path)
 
@@ -197,12 +292,18 @@ class TrayUI:
             MenuItem(status_text, None, enabled=False),
             Menu.SEPARATOR,
             MenuItem("模型選擇 (Model)", model_submenu),
+        ]
+
+        if device_submenu is not None:
+            items.append(MenuItem("運算裝置 (Device)", device_submenu))
+
+        items.extend([
             MenuItem("開啟詞庫 (Open Dictionary)", handle_open_dict),
             MenuItem("重新載入詞庫 (Reload Dictionary)", handle_reload_dict),
             MenuItem("重置設定檔 (Reset Config)", handle_reset_cfg),
             Menu.SEPARATOR,
             MenuItem("結束 (Quit)", handle_quit),
-        ]
+        ])
 
         return Menu(*items)
 

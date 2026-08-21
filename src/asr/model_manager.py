@@ -256,12 +256,49 @@ class ModelManager:
         # Allow passing full HuggingFace ID or explicit local path directly
         return model_identifier
 
+    def resolve_device(self, preferred_device: Optional[str] = None) -> str:
+        """Resolve the effective computation device ('cuda:0', 'mps', or 'cpu')."""
+        req = (preferred_device or self.device or "auto").lower().strip()
+
+        # If user explicitly requested CPU
+        if req == "cpu":
+            return "cpu"
+
+        # Check CUDA
+        try:
+            import torch
+            if req in ("auto", "cuda", "cuda:0"):
+                if torch.cuda.is_available():
+                    return "cuda:0"
+                if req != "auto":
+                    logger.warning("CUDA was requested but torch.cuda.is_available() is False. Falling back to CPU.")
+            if req in ("auto", "mps"):
+                if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                    return "mps"
+                if req != "auto":
+                    logger.warning("MPS was requested but torch.backends.mps.is_available() is False. Falling back to CPU.")
+        except ImportError:
+            pass
+
+        return "cpu"
+
+    def switch_device(self, target_device: str) -> None:
+        """Switch execution device (RAM vs VRAM), unloading the current model and reloading onto the target device."""
+        prev_model = self._current_model_name
+        logger.info("Switching device from '%s' to '%s'...", self.device, target_device)
+        self.device = target_device
+        self.unload_model()
+        if prev_model:
+            self.load_model(prev_model)
+
     def load_model(
         self,
         model_identifier: Optional[str] = None,
+        force_reload: bool = False,
+        device: Optional[str] = None,
         on_download_progress: Optional[Callable[[float, str], None]] = None,
     ) -> Any:
-        """Load a Qwen3-ASR model into memory.
+        """Load a Qwen3-ASR model into memory/GPU.
 
         If a model is already loaded and differs from the requested one, the old model
         is automatically unloaded and its memory released first.
@@ -269,9 +306,15 @@ class ModelManager:
         """
         target_name = (model_identifier or self.default_model_key).lower().strip()
         model_id = self.resolve_model_id(target_name)
+        effective_device = self.resolve_device(device or self.device)
 
-        if self._current_model_name == target_name and self._current_model_instance is not None:
-            logger.info("Model '%s' is already loaded and ready.", target_name)
+        if (
+            not force_reload
+            and self._current_model_name == target_name
+            and self._current_model_instance is not None
+            and getattr(self, "_current_loaded_device", None) == effective_device
+        ):
+            logger.info("Model '%s' is already loaded and ready on '%s'.", target_name, effective_device)
             return self._current_model_instance
 
         # Unload existing model before loading new one
@@ -288,9 +331,15 @@ class ModelManager:
 
         self._status = ModelStatus.LOADING
         self._last_error = None
-        logger.info("Loading ASR model '%s' (Resolved ID/Path: %s)...", target_name, model_id)
+        logger.info("Loading ASR model '%s' (Resolved ID/Path: %s) onto device '%s'...", target_name, model_id, effective_device)
 
         try:
+            # Register CUDA DLLs if available on Windows
+            from src.asr.cuda_manager import CUDAManager
+            cuda_mgr = CUDAManager()
+            if cuda_mgr.is_addon_installed():
+                cuda_mgr.register_addon_dlls()
+
             # Import qwen_asr dynamically
             try:
                 from qwen_asr import Qwen3ASRModel
@@ -320,30 +369,18 @@ class ModelManager:
                     f"{guidance}"
                 ) from ie
 
-            device = self.device
-            if device is None:
-                try:
-                    import torch
-                    if torch.cuda.is_available():
-                        device = "cuda:0"
-                    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                        device = "mps"
-                    else:
-                        device = "cpu"
-                except ImportError:
-                    device = "cpu"
-
-            logger.info("Loading model on device: %s", device)
+            logger.info("Loading model on device: %s", effective_device)
             model_instance = Qwen3ASRModel.from_pretrained(
                 model_id,
-                device_map=device if device != "cpu" else None,
+                device_map=effective_device if effective_device != "cpu" else None,
                 cache_dir=str(self.get_hf_cache_directory()),
             )
 
             self._current_model_name = target_name
             self._current_model_instance = model_instance
+            self._current_loaded_device = effective_device
             self._status = ModelStatus.READY
-            logger.info("Model '%s' loaded successfully.", target_name)
+            logger.info("Model '%s' loaded successfully on '%s'.", target_name, effective_device)
             return self._current_model_instance
 
         except Exception as e:
@@ -352,6 +389,7 @@ class ModelManager:
             self._last_error = str(e)
             self._current_model_name = None
             self._current_model_instance = None
+            self._current_loaded_device = None
             guidance = self.get_offline_guidance(target_name)
             logger.error("Failed to load model '%s': %s\n%s", target_name, e, traceback.format_exc())
             if isinstance(e, ModelManagerError):
@@ -365,6 +403,7 @@ class ModelManager:
             del self._current_model_instance
             self._current_model_instance = None
             self._current_model_name = None
+            self._current_loaded_device = None
 
             # Garbage collection & PyTorch cache flush
             gc.collect()

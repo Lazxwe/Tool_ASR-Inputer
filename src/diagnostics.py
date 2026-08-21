@@ -95,17 +95,28 @@ class SystemDoctor:
             "執行檔路徑": sys.executable,
         }
 
-        # Check torch acceleration
-        try:
-            import torch
-            if torch.cuda.is_available():
-                info["運算加速裝置"] = f"NVIDIA CUDA ({torch.cuda.get_device_name(0)})"
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                info["運算加速裝置"] = "Apple Silicon MPS (GPU 加速)"
+        # Check torch acceleration and physical GPU
+        from src.hardware.gpu_detector import detect_nvidia_gpu, is_apple_silicon, is_torch_cuda_ready
+        from src.asr.cuda_manager import CUDAManager
+
+        if is_apple_silicon():
+            info["運算加速裝置"] = "Apple Silicon MPS (Metal GPU 統一記憶體加速)"
+        else:
+            gpu = detect_nvidia_gpu()
+            cuda_ready = is_torch_cuda_ready()
+            cuda_addon = CUDAManager().is_addon_installed()
+
+            if gpu:
+                status_parts = [f"NVIDIA GPU: {gpu}"]
+                if cuda_ready:
+                    status_parts.append("(PyTorch CUDA 已就緒 - 支援顯卡顯存)")
+                elif cuda_addon:
+                    status_parts.append("(CUDA 擴充套件已安裝 - 支援顯卡顯存)")
+                else:
+                    status_parts.append("(尚未安裝 CUDA 依賴 - 目前以 CPU 模式運作)")
+                info["運算加速裝置"] = " ".join(status_parts)
             else:
                 info["運算加速裝置"] = "CPU (標準處理器模式)"
-        except ImportError:
-            info["運算加速裝置"] = "未偵測到 PyTorch"
 
         return info
 
