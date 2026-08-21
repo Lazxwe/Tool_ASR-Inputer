@@ -21,17 +21,29 @@ def test_open_file_in_system_editor(tmp_path: Path) -> None:
     # Non-existent file
     assert open_file_in_system_editor(tmp_path / "non_existent.json") is False
 
-    with patch("subprocess.Popen") as mock_popen:
-        assert open_file_in_system_editor(test_file) is True
-        assert mock_popen.called
+    with patch("platform.system", return_value="Darwin"):
+        with patch("subprocess.Popen") as mock_popen:
+            assert open_file_in_system_editor(test_file) is True
+            assert mock_popen.called
+
+    with patch("platform.system", return_value="Windows"):
+        with patch("os.startfile", create=True) as mock_startfile:
+            assert open_file_in_system_editor(test_file) is True
+            mock_startfile.assert_called_once_with(str(test_file.resolve()))
 
 
 def test_open_file_in_system_editor_failure(tmp_path: Path) -> None:
     test_file = tmp_path / "test.json"
     test_file.write_text("{}", encoding="utf-8")
 
-    with patch("subprocess.Popen", side_effect=Exception("Failed to spawn process")):
-        assert open_file_in_system_editor(test_file) is False
+    with patch("platform.system", return_value="Darwin"):
+        with patch("subprocess.Popen", side_effect=Exception("Failed to spawn process")):
+            assert open_file_in_system_editor(test_file) is False
+
+    with patch("platform.system", return_value="Windows"):
+        with patch("os.startfile", side_effect=Exception("Startfile failed"), create=True):
+            assert open_file_in_system_editor(test_file) is False
+
 
 
 def test_tray_ui_build_menu_and_callbacks(tmp_path: Path) -> None:
