@@ -17,6 +17,7 @@ class AppState(str, enum.Enum):
     PROCESSING = "processing"
     READY = "ready"
     ERROR = "error"
+    DOWNLOADING = "downloading"
 
     @property
     def display_name(self) -> str:
@@ -27,6 +28,7 @@ class AppState(str, enum.Enum):
             AppState.PROCESSING: "辨識處理中 (Processing)",
             AppState.READY: "就緒 (Ready)",
             AppState.ERROR: "發生錯誤 (Error)",
+            AppState.DOWNLOADING: "模型下載中 (Downloading)",
         }
         return labels.get(self, self.value)
 
@@ -40,6 +42,8 @@ class StateManager:
     def __init__(self, initial_state: AppState = AppState.READY) -> None:
         self._state = initial_state
         self._last_error: Optional[str] = None
+        self._download_percent: float = 0.0
+        self._download_message: Optional[str] = None
         self._last_state_change: float = time.time()
         self._subscribers: list[StateCallback] = []
         self._lock = threading.Lock()
@@ -55,6 +59,18 @@ class StateManager:
         """Last recorded error message."""
         with self._lock:
             return self._last_error
+
+    @property
+    def download_percent(self) -> float:
+        """Current model download progress percentage (0.0 - 100.0)."""
+        with self._lock:
+            return self._download_percent
+
+    @property
+    def download_message(self) -> Optional[str]:
+        """Current model download status message."""
+        with self._lock:
+            return self._download_message
 
     @property
     def last_state_change(self) -> float:
@@ -73,9 +89,29 @@ class StateManager:
         return self.state == AppState.PROCESSING
 
     @property
+    def is_downloading(self) -> bool:
+        """Return True if currently downloading ASR model."""
+        return self.state == AppState.DOWNLOADING
+
+    @property
     def is_idle_or_ready(self) -> bool:
         """Return True if ready to accept a new recording trigger."""
         return self.state in (AppState.IDLE, AppState.READY)
+
+    def set_download_progress(self, percent: float, message: Optional[str] = None) -> None:
+        """Update model download progress and transition to DOWNLOADING state."""
+        with self._lock:
+            self._state = AppState.DOWNLOADING
+            self._download_percent = max(0.0, min(100.0, float(percent)))
+            self._download_message = message
+            self._last_state_change = time.time()
+            callbacks = list(self._subscribers)
+
+        for callback in callbacks:
+            try:
+                callback(AppState.DOWNLOADING, message)
+            except Exception as e:
+                logger.error("Error in state change subscriber callback: %s", e)
 
     def set_state(self, new_state: AppState, error_msg: Optional[str] = None) -> None:
         """Transition to a new application state and notify all subscribers.
@@ -88,6 +124,10 @@ class StateManager:
             old_state = self._state
             self._state = new_state
             self._last_state_change = time.time()
+            if new_state != AppState.DOWNLOADING:
+                self._download_percent = 0.0
+                self._download_message = None
+
             if error_msg is not None:
                 self._last_error = error_msg
             elif new_state in (AppState.READY, AppState.IDLE):
@@ -124,3 +164,4 @@ class StateManager:
     def reset_to_ready(self) -> None:
         """Helper to safely reset state back to READY."""
         self.set_state(AppState.READY)
+

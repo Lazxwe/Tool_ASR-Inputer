@@ -6,7 +6,7 @@ import gc
 import logging
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +20,44 @@ MODEL_REGISTRY: dict[str, str] = {
 class ModelStatus(str, enum.Enum):
     """Lifecycle status of the ASR model."""
     UNLOADED = "unloaded"
+    DOWNLOADING = "downloading"
     LOADING = "loading"
     READY = "ready"
     ERROR = "error"
+
+
+class _HFDownloadProgressBar:
+    """Lightweight tqdm wrapper to capture HuggingFace download progress."""
+    _active_callback: Optional[Callable[[float, str], None]] = None
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self.total: float = float(kwargs.get("total") or 0)
+        self.n: float = float(kwargs.get("initial") or 0)
+        self.desc: str = str(kwargs.get("desc") or "模型下載中")
+        self._report()
+
+    def update(self, n: float = 1) -> None:
+        self.n += n
+        self._report()
+
+    def _report(self) -> None:
+        cb = _HFDownloadProgressBar._active_callback
+        if cb and self.total > 0:
+            pct = min(100.0, max(0.0, (self.n / self.total) * 100.0))
+            try:
+                cb(pct, f"{self.desc} ({pct:.1f}%)")
+            except Exception as e:
+                logger.debug("Error in download progress callback: %s", e)
+
+    def close(self) -> None:
+        pass
+
+    def __enter__(self) -> _HFDownloadProgressBar:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
 
 
 class ModelManagerError(Exception):
@@ -143,21 +178,41 @@ class ModelManager:
             f"或執行指令預先下載：python -m src.main --download-model {key}"
         )
 
-    def download_model(self, model_identifier: str = "0.6b") -> str:
-        """Explicitly download model weights with real-time progress bar displayed in console."""
+    def download_model(
+        self,
+        model_identifier: str = "0.6b",
+        progress_callback: Optional[Callable[[float, str], None]] = None,
+    ) -> str:
+        """Explicitly download model weights with real-time progress bar displayed in console or via callback."""
         target_name = model_identifier.lower().strip()
         repo_id = MODEL_REGISTRY.get(target_name, model_identifier)
         logger.info("Starting download for model '%s' (HuggingFace Repo: %s)...", target_name, repo_id)
 
+        if progress_callback is not None:
+            _HFDownloadProgressBar._active_callback = progress_callback
+            try:
+                progress_callback(0.0, f"開始下載模型 {target_name}...")
+            except Exception as e:
+                logger.debug("Error in download start callback: %s", e)
+
         try:
             from huggingface_hub import snapshot_download
             cache_dir = self.get_hf_cache_directory()
-            local_path = snapshot_download(
-                repo_id=repo_id,
-                cache_dir=str(cache_dir),
-                resume_download=True,
-            )
+            kwargs: dict[str, Any] = {
+                "repo_id": repo_id,
+                "cache_dir": str(cache_dir),
+                "resume_download": True,
+            }
+            if progress_callback is not None:
+                kwargs["tqdm_class"] = _HFDownloadProgressBar
+
+            local_path = snapshot_download(**kwargs)
             logger.info("Model '%s' successfully downloaded to %s", target_name, local_path)
+            if progress_callback is not None:
+                try:
+                    progress_callback(100.0, f"模型 {target_name} 下載完成")
+                except Exception as e:
+                    logger.debug("Error in download finish callback: %s", e)
             return str(local_path)
         except ImportError:
             # Fallback via qwen_asr
@@ -167,11 +222,18 @@ class ModelManager:
                     repo_id,
                     cache_dir=str(self.get_hf_cache_directory()),
                 )
+                if progress_callback is not None:
+                    try:
+                        progress_callback(100.0, f"模型 {target_name} 下載完成")
+                    except Exception as e:
+                        logger.debug("Error in fallback callback: %s", e)
                 return str(self.get_hf_cache_directory())
             except ImportError as ie:
                 raise ModelManagerError(
                     "請先安裝 huggingface_hub 或 qwen-asr: pip install huggingface_hub qwen-asr"
                 ) from ie
+        finally:
+            _HFDownloadProgressBar._active_callback = None
 
     def resolve_model_id(self, model_identifier: str) -> str:
         """Resolve a model shortcut or local path to a valid model ID or directory.
@@ -192,11 +254,16 @@ class ModelManager:
         # Allow passing full HuggingFace ID or explicit local path directly
         return model_identifier
 
-    def load_model(self, model_identifier: Optional[str] = None) -> Any:
+    def load_model(
+        self,
+        model_identifier: Optional[str] = None,
+        on_download_progress: Optional[Callable[[float, str], None]] = None,
+    ) -> Any:
         """Load a Qwen3-ASR model into memory.
 
         If a model is already loaded and differs from the requested one, the old model
         is automatically unloaded and its memory released first.
+        If the model is not present locally, it will be downloaded first with progress notifications.
         """
         target_name = (model_identifier or self.default_model_key).lower().strip()
         model_id = self.resolve_model_id(target_name)
@@ -208,6 +275,14 @@ class ModelManager:
         # Unload existing model before loading new one
         if self._current_model_instance is not None:
             self.unload_model()
+
+        # If progress tracking callback is provided and model is not yet local, download explicitly
+        if on_download_progress is not None:
+            avail_info = self.check_local_model_availability(target_name)
+            if not avail_info.get("available", False):
+                self._status = ModelStatus.DOWNLOADING
+                logger.info("Model '%s' not found locally. Initiating download with progress callback...", target_name)
+                self.download_model(target_name, progress_callback=on_download_progress)
 
         self._status = ModelStatus.LOADING
         self._last_error = None

@@ -13,7 +13,7 @@
 | **Phase 3** | **系統互動與常駐介面** | ✅ 已完成 (Completed) | F8 全域按鍵、系統剪貼簿寫入與模擬貼上 (Cmd+V/Ctrl+V)、pystray 常駐選單、應用程式背景調度 (94/94 通過, 95% 覆蓋率) |
 | **Phase 4** | **錯誤防禦與打包分發** | ✅ 已完成 (Completed) | 純本機模型檢測與引導、異常防禦（麥克風/模型/詞庫）、一鍵系統診斷 (`--doctor`)、PyInstaller 分發打包與繁中部署手冊 (117/117 通過, 94% 覆蓋率) |
 | **Phase 5** | **上下文感知同音詞校正** | ✅ 已完成 (Completed) | Level 2 Context-Aware Dictionary（前後文條件比對，如「寫+城市」->「寫+程式」，但「台北是一個城市」不誤替換）、自訂詞庫 v2 格式升級與單元測試 (126/126 通過, 92% 覆蓋率) |
-| **Phase 6** | **模型下載感知與原生通知** | 待開始 (Pending) | 跨平台原生系統通知（macOS / Windows）、`AppState.DOWNLOADING` 狀態管理、下載中 F8 觸發防禦攔截與進度即時反饋 |
+| **Phase 6** | **模型下載感知與原生通知** | ✅ 已完成 (Completed) | 跨平台原生系統通知（macOS / Windows）、`AppState.DOWNLOADING` 狀態管理、下載中 F8 觸發防禦攔截與進度即時反饋 (145/145 通過, 92% 覆蓋率) |
 
 ---
 
@@ -70,9 +70,10 @@
 - [x] 更新 `--doctor` 與設定載入器支援 v2 詞庫解析與詞條統計 (126 passed in 5.90s, 92% coverage)
 
 ### Phase 6: 模型下載感知與原生通知 (Phase 6: Model Download Notification & Guard)
-- [ ] 實作跨平台原生系統通知服務 `src/ui/notification.py`（支援 macOS osascript、Windows 快顯通知與日誌後備）
-- [ ] 擴充 `src/app/state.py` 狀態機支援 `AppState.DOWNLOADING` 與即時進度百分比管理
-- [ ] 擴充 `src/asr/model_manager.py` 捕捉 HuggingFace 下載進度回調並派發通知
-- [ ] 在 `src/app/application.py` 實作下載期間 F8 熱鍵攔截與提示防禦（拒絕空錄音與推論）
-- [ ] 串接 `src/ui/tray.py` 托盤圖示與懸停提示文字動態反映下載進度
-- [ ] 撰寫單元與防禦測試 `tests/test_notification.py` 與 `tests/test_download_guard.py`
+- [x] 實作跨平台原生系統通知服務 `src/ui/notification.py`（支援 macOS osascript、Windows 快顯通知與日誌後備）
+- [x] 擴充 `src/app/state.py` 狀態機支援 `AppState.DOWNLOADING` 與即時進度百分比管理
+- [x] 擴充 `src/asr/model_manager.py` 捕捉 HuggingFace 下載進度回調並派發通知
+- [x] 在 `src/app/application.py` 實作下載期間 F8 熱鍵攔截與提示防禦（拒絕空錄音與推論）
+- [x] 串接 `src/ui/tray.py` 托盤圖示與懸停提示文字動態反映下載進度
+- [x] 撰寫單元與防禦測試 `tests/test_notification.py` 與 `tests/test_download_guard.py` (全專案 145/145 通過, 92% 覆蓋率)
+

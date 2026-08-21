@@ -17,6 +17,7 @@ from src.input.hotkey import HotkeyListener
 from src.input.paste import PasteService
 from src.settings.config import AppConfig, load_config, save_config
 from src.text.pipeline import TextPipeline
+from src.ui.notification import NotificationService
 from src.ui.tray import TrayUI
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ class VoiceInputApp:
         enable_tray: bool = True,
         enable_hotkey: bool = True,
         auto_load_model: bool = False,
+        notifier: Optional[NotificationService] = None,
     ) -> None:
         self.config_path = Path(config_path)
         self.dictionary_path = Path(dictionary_path)
@@ -41,6 +43,9 @@ class VoiceInputApp:
         # 1. Settings & Text Pipeline
         self.config: AppConfig = load_config(self.config_path)
         self.pipeline = TextPipeline(dict_path=self.dictionary_path)
+
+        # 2. Notification Service
+        self.notifier = notifier or NotificationService()
 
         # 3. Audio & State
         self.recorder = AudioRecorder(sample_rate=self.config.sample_rate)
@@ -80,6 +85,9 @@ class VoiceInputApp:
                 on_quit=self.stop,
                 dictionary_path=self.dictionary_path,
             )
+            # Bind tray icon to notification service if available
+            if hasattr(self.tray_ui, "_icon"):
+                self.notifier.set_tray_icon(self.tray_ui._icon)
 
         self._processing_thread: Optional[threading.Thread] = None
         self._is_running = False
@@ -91,10 +99,23 @@ class VoiceInputApp:
     def _lazy_load_model(self) -> None:
         """Asynchronously pre-load ASR model in background if requested."""
         def loader() -> None:
+            target = self.config.model
+            avail = self.model_manager.check_local_model_availability(target)
+            if not avail.get("available", False):
+                self.notifier.send(f"開始下載 ASR 模型 '{target}'，請稍候...")
+
+            def on_progress(pct: float, msg: str) -> None:
+                self.state_manager.set_download_progress(pct, msg)
+
             try:
-                self.model_manager.load_model(self.config.model)
+                self.model_manager.load_model(target, on_download_progress=on_progress)
+                self.state_manager.set_state(AppState.READY)
+                if not avail.get("available", False):
+                    self.notifier.send(f"🎉 ASR 模型 '{target}' 下載完成，已就緒！")
             except Exception as e:
-                logger.warning("Could not pre-load model '%s': %s", self.config.model, e)
+                logger.warning("Could not pre-load model '%s': %s", target, e)
+                self.state_manager.set_state(AppState.ERROR, f"載入模型失敗: {e}")
+                self.notifier.send(f"❌ 載入模型 '{target}' 失敗: {e}")
 
         thread = threading.Thread(target=loader, daemon=True)
         thread.start()
@@ -103,6 +124,14 @@ class VoiceInputApp:
         """Toggle recording state when hotkey is triggered in toggle mode."""
         with self._lock:
             current_state = self.state_manager.state
+
+            # Intercept hotkey if model is currently downloading
+            if current_state == AppState.DOWNLOADING or self.state_manager.is_downloading:
+                pct = self.state_manager.download_percent
+                msg = f"⚠️ 正在下載模型中 ({pct:.0f}%)，請稍候..." if pct > 0 else "⚠️ 正在下載模型中，請稍候..."
+                logger.warning("Hotkey triggered while model is downloading (%.1f%%). Intercepted.", pct)
+                self.notifier.send(msg)
+                return
 
             if current_state in (AppState.IDLE, AppState.READY, AppState.ERROR):
                 self._start_recording_locked()
@@ -114,8 +143,19 @@ class VoiceInputApp:
     def _on_press_start(self) -> None:
         """Triggered on hotkey press in hold mode."""
         with self._lock:
-            if self.state_manager.state in (AppState.IDLE, AppState.READY, AppState.ERROR):
+            current_state = self.state_manager.state
+
+            # Intercept hotkey if model is currently downloading
+            if current_state == AppState.DOWNLOADING or self.state_manager.is_downloading:
+                pct = self.state_manager.download_percent
+                msg = f"⚠️ 正在下載模型中 ({pct:.0f}%)，請稍候..." if pct > 0 else "⚠️ 正在下載模型中，請稍候..."
+                logger.warning("Hotkey pressed while model is downloading (%.1f%%). Intercepted.", pct)
+                self.notifier.send(msg)
+                return
+
+            if current_state in (AppState.IDLE, AppState.READY, AppState.ERROR):
                 self._start_recording_locked()
+
 
     def _on_release_stop(self) -> None:
         """Triggered on hotkey release in hold mode."""
@@ -207,14 +247,23 @@ class VoiceInputApp:
         save_config(self.config, self.config_path)
 
         def worker() -> None:
+            avail = self.model_manager.check_local_model_availability(target)
+            if not avail.get("available", False):
+                self.notifier.send(f"開始下載 ASR 模型 '{target}'，請稍候...")
+
+            def on_progress(pct: float, msg: str) -> None:
+                self.state_manager.set_download_progress(pct, msg)
+
             try:
                 self.state_manager.set_state(AppState.PROCESSING)
-                self.model_manager.load_model(target)
+                self.model_manager.load_model(target, on_download_progress=on_progress)
                 self.state_manager.set_state(AppState.READY)
                 logger.info("Successfully switched model to '%s'.", target)
+                self.notifier.send(f"🎉 已成功切換至 ASR 模型 '{target}'！")
             except Exception as e:
                 logger.error("Failed to load switched model '%s': %s", target, e)
                 self.state_manager.set_state(AppState.ERROR, f"切換模型失敗: {e}")
+                self.notifier.send(f"❌ 切換模型 '{target}' 失敗: {e}")
 
         threading.Thread(target=worker, daemon=True).start()
 

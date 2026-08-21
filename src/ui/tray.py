@@ -30,11 +30,12 @@ def create_status_icon(state: AppState, size: int = 64) -> Image.Image:
 
     # Color palette based on state
     colors = {
-        AppState.IDLE: "#2E7D32",       # Forest Green
-        AppState.READY: "#1976D2",      # Deep Blue
-        AppState.RECORDING: "#D32F2F",  # Vivid Red
-        AppState.PROCESSING: "#F57C00", # Amber/Orange
-        AppState.ERROR: "#757575",      # Neutral Gray
+        AppState.IDLE: "#2E7D32",         # Forest Green
+        AppState.READY: "#1976D2",        # Deep Blue
+        AppState.RECORDING: "#D32F2F",    # Vivid Red
+        AppState.PROCESSING: "#F57C00",   # Amber/Orange
+        AppState.DOWNLOADING: "#7C4DFF",  # Vivid Purple
+        AppState.ERROR: "#757575",        # Neutral Gray
     }
     color = colors.get(state, "#1976D2")
 
@@ -61,6 +62,12 @@ def create_status_icon(state: AppState, size: int = 64) -> Image.Image:
             [(inner_pad, inner_pad), (size - inner_pad, size - inner_pad)],
             fill="#FFFFFF",
         )
+    elif state == AppState.DOWNLOADING:
+        # Downward arrow for downloading
+        mid_x = size // 2
+        draw.line([(mid_x, inner_pad), (mid_x, size - inner_pad)], fill="#FFFFFF", width=3)
+        draw.line([(inner_pad + 2, mid_x + 2), (mid_x, size - inner_pad)], fill="#FFFFFF", width=3)
+        draw.line([(size - inner_pad - 2, mid_x + 2), (mid_x, size - inner_pad)], fill="#FFFFFF", width=3)
     elif state == AppState.ERROR:
         # Cross for error
         draw.line([(inner_pad, inner_pad), (size - inner_pad, size - inner_pad)], fill="#FFFFFF", width=3)
@@ -128,10 +135,14 @@ class TrayUI:
         current_model = self.current_model_getter().lower()
 
         # Status text
-        status_text = f"狀態: {current_state.display_name}"
-        if current_state == AppState.ERROR and self.state_manager.last_error:
+        if current_state == AppState.DOWNLOADING:
+            pct = self.state_manager.download_percent
+            status_text = f"狀態: 下載模型中 ({pct:.0f}%)"
+        elif current_state == AppState.ERROR and self.state_manager.last_error:
             error_preview = self.state_manager.last_error[:30]
             status_text = f"錯誤: {error_preview}..."
+        else:
+            status_text = f"狀態: {current_state.display_name}"
 
         # Model selection submenu
         def is_06b_selected(item: MenuItem) -> bool:
@@ -205,7 +216,11 @@ class TrayUI:
             try:
                 new_image = create_status_icon(self.state_manager.state)
                 self._icon.icon = new_image
-                self._icon.title = f"Tool_ASR Inputer ({self.state_manager.state.display_name})"
+                if self.state_manager.state == AppState.DOWNLOADING:
+                    pct = self.state_manager.download_percent
+                    self._icon.title = f"Tool_ASR Inputer (下載中 {pct:.0f}%)"
+                else:
+                    self._icon.title = f"Tool_ASR Inputer ({self.state_manager.state.display_name})"
                 self._icon.menu = self._build_menu()
                 if hasattr(self._icon, "update_menu"):
                     self._icon.update_menu()
