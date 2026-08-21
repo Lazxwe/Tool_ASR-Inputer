@@ -15,7 +15,7 @@ DEFAULT_CONFIG_PATH = Path("config.json")
 class AppConfig:
     """Application configuration schema."""
     model: str = "0.6b"
-    hotkey: str = "f8"
+    hotkey: str = "ctrl_r"
     hotkey_mode: str = "hold"  # 'hold' (按住錄音/鬆開送出) 或 'toggle' (按一下開始/再按一下結束)
     model_dir: str = "./models"
     sample_rate: int = 16000
@@ -48,7 +48,7 @@ def load_config(config_path: Path | str = DEFAULT_CONFIG_PATH) -> AppConfig:
             logger.warning("Invalid model '%s' in config. Falling back to '0.6b'.", model)
             model = "0.6b"
 
-        hotkey = str(data.get("hotkey", "f8")).lower().strip()
+        hotkey = str(data.get("hotkey", "ctrl_r")).lower().strip()
         hotkey_mode = str(data.get("hotkey_mode", "hold")).lower().strip()
         if hotkey_mode not in ("hold", "toggle"):
             logger.warning("Invalid hotkey_mode '%s' in config. Defaulting to 'hold'.", hotkey_mode)

@@ -2,8 +2,8 @@
   "_說明_model": "【模型版本】啟動時載入的模型，可填 '0.6b' 或 '1.7b'。注意：軟體啟動後，直接點擊右上角工作列/選單列圖示即可隨時切換，不需手動改檔。",
   "model": "0.6b",
 
-  "_說明_hotkey": "【語音熱鍵】觸發錄音的按鍵名稱。單鍵如 'f8'、'f9'、'f2'；組合鍵如 'ctrl+space'、'alt+v'、'ctrl+alt+a'。macOS / Windows 通用。",
-  "hotkey": "f8",
+  "_說明_hotkey": "【語音熱鍵】觸發錄音的按鍵名稱。預設推薦 'ctrl_r' (右側 Control 鍵，長按說話、放開即送出，不易與日常快捷鍵衝突)。\n  - 獨立左右鍵格式：'ctrl_r' (右Ctrl)、'ctrl_l' (左Ctrl)、'alt_r' (右Alt)、'alt_l' (左Alt)、'shift_r' (右Shift)、'shift_l' (左Shift)、'cmd_r' (右Cmd)。\n  - 單一功能鍵：'f8'、'f9'、'f2' 等。\n  - 組合鍵：'ctrl_r+space'、'alt_r+v'、'ctrl+alt+a'。\n  - 不分左右通用控制鍵：'ctrl'、'alt'、'shift'、'cmd'。",
+  "hotkey": "ctrl_r",
 
   "_說明_hotkey_mode": "【觸發模式】'hold' (按住錄音，放開自動停止並送出貼上，推薦) 或 'toggle' (按一下開始，再按一下停止送出)。",
   "hotkey_mode": "hold",

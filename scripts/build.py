@@ -57,7 +57,33 @@ def run_pyinstaller() -> None:
         "--hidden-import=pynput",
         "--hidden-import=pynput.keyboard",
         "--hidden-import=pynput.mouse",
+        # AI & Model dependencies
+        "--hidden-import=torch",
+        "--hidden-import=transformers",
+        "--hidden-import=safetensors",
+        "--hidden-import=safetensors.torch",
+        "--hidden-import=huggingface_hub",
+        # Standard libraries
+        "--hidden-import=timeit",
+        "--hidden-import=http.cookies",
+        "--hidden-import=unittest.mock",
+        "--hidden-import=queue",
+        "--hidden-import=threading",
     ]
+
+    # Dynamic python3.dll discovery (Stable ABI forwarding layer on Windows)
+    candidate_dirs = [
+        os.path.dirname(sys.executable),
+        getattr(sys, "base_prefix", None),
+        getattr(sys, "real_prefix", None),
+    ]
+    for p_dir in candidate_dirs:
+        if p_dir and os.path.exists(p_dir):
+            dll_path = os.path.join(p_dir, "python3.dll")
+            if os.path.exists(dll_path):
+                cmd.append(f"--add-binary={dll_path}{sep}.")
+                print(f"Found and bundling python3.dll: {dll_path}")
+                break
 
     # Platform-specific hidden imports
     current_os = platform.system().lower()

@@ -18,18 +18,71 @@ class HotkeyError(Exception):
     pass
 
 
+SPECIAL_KEY_ALIASES: dict[str, str] = {
+    # Specific left/right modifiers (e.g. right Control, right Alt)
+    "ctrl_r": "<ctrl_r>",
+    "ctrl_right": "<ctrl_r>",
+    "r_ctrl": "<ctrl_r>",
+    "rctrl": "<ctrl_r>",
+    "ctrl_l": "<ctrl_l>",
+    "ctrl_left": "<ctrl_l>",
+    "l_ctrl": "<ctrl_l>",
+    "lctrl": "<ctrl_l>",
+    "alt_r": "<alt_r>",
+    "alt_right": "<alt_r>",
+    "r_alt": "<alt_r>",
+    "ralt": "<alt_r>",
+    "alt_l": "<alt_l>",
+    "alt_left": "<alt_l>",
+    "l_alt": "<alt_l>",
+    "lalt": "<alt_l>",
+    "shift_r": "<shift_r>",
+    "shift_right": "<shift_r>",
+    "r_shift": "<shift_r>",
+    "rshift": "<shift_r>",
+    "shift_l": "<shift_l>",
+    "shift_left": "<shift_l>",
+    "l_shift": "<shift_l>",
+    "lshift": "<shift_l>",
+    "cmd_r": "<cmd_r>",
+    "cmd_right": "<cmd_r>",
+    "r_cmd": "<cmd_r>",
+    "rcmd": "<cmd_r>",
+    "cmd_l": "<cmd_l>",
+    "cmd_left": "<cmd_l>",
+    "l_cmd": "<cmd_l>",
+    "lcmd": "<cmd_l>",
+    # Generic modifiers (triggers on either side)
+    "ctrl": "<ctrl>",
+    "alt": "<alt>",
+    "cmd": "<cmd>",
+    "shift": "<shift>",
+    # Other special keys
+    "capslock": "<caps_lock>",
+    "caps_lock": "<caps_lock>",
+    "space": "<space>",
+    "enter": "<enter>",
+    "tab": "<tab>",
+    "esc": "<esc>",
+    "escape": "<esc>",
+}
+
+
 def normalize_hotkey_string(hotkey_str: str) -> str:
     """Normalize a hotkey string for pynput GlobalHotKeys format.
 
+    Supports distinguishing left and right modifier keys (e.g. 'ctrl_r', 'ctrl_l').
+
     Examples:
+        'ctrl_r' -> '<ctrl_r>'
+        'ctrl_l' -> '<ctrl_l>'
         'f8' -> '<f8>'
         '<f8>' -> '<f8>'
-        'F8' -> '<f8>'
         'ctrl+alt+a' -> '<ctrl>+<alt>+a'
     """
     cleaned = hotkey_str.strip().lower()
     if not cleaned:
-        return "<f8>"
+        return "<ctrl_r>"
 
     parts = cleaned.split("+")
     normalized_parts = []
@@ -39,9 +92,9 @@ def normalize_hotkey_string(hotkey_str: str) -> str:
             continue
         if p.startswith("<") and p.endswith(">"):
             normalized_parts.append(p)
+        elif p in SPECIAL_KEY_ALIASES:
+            normalized_parts.append(SPECIAL_KEY_ALIASES[p])
         elif p.startswith("f") and p[1:].isdigit():
-            normalized_parts.append(f"<{p}>")
-        elif p in ("ctrl", "alt", "cmd", "shift", "caps_lock", "space", "enter", "tab", "esc"):
             normalized_parts.append(f"<{p}>")
         else:
             normalized_parts.append(p)
@@ -54,7 +107,7 @@ class HotkeyListener:
 
     def __init__(
         self,
-        hotkey: str = "f8",
+        hotkey: str = "ctrl_r",
         mode: str = "hold",
         on_triggered: Optional[Callable[[], None]] = None,
         on_press_start: Optional[Callable[[], None]] = None,
@@ -79,13 +132,31 @@ class HotkeyListener:
         with self._lock:
             return self._is_running and (self._listener is not None and self._listener.is_alive())
 
+    def _resolve_matching_key(self, key: object) -> object:
+        """Resolve raw key event to match specific side modifiers or canonical modifiers."""
+        if self._hotkey_obj is None or self._listener is None:
+            return key
+        try:
+            canonical_key = self._listener.canonical(key)  # type: ignore[arg-type]
+        except Exception:
+            canonical_key = key
+
+        candidates = [canonical_key, key]
+        if hasattr(key, "value") and keyboard is not None and isinstance(getattr(key, "value"), keyboard.KeyCode):
+            candidates.append(getattr(key, "value"))
+
+        for c in candidates:
+            if c in self._hotkey_obj._keys:
+                return c
+        return canonical_key
+
     def _on_hotkey_press_event(self, key: object) -> None:
         """Handle raw key press event."""
         if self._hotkey_obj is None or self._listener is None:
             return
         try:
-            canonical_key = self._listener.canonical(key)  # type: ignore[arg-type]
-            self._hotkey_obj.press(canonical_key)
+            matching_key = self._resolve_matching_key(key)
+            self._hotkey_obj.press(matching_key)
 
             if self.mode == "hold":
                 if len(self._hotkey_obj._state) == len(self._hotkey_obj._keys):
@@ -102,9 +173,9 @@ class HotkeyListener:
         if self._hotkey_obj is None or self._listener is None:
             return
         try:
-            canonical_key = self._listener.canonical(key)  # type: ignore[arg-type]
+            matching_key = self._resolve_matching_key(key)
             was_active = self._is_active
-            self._hotkey_obj.release(canonical_key)
+            self._hotkey_obj.release(matching_key)
 
             if self.mode == "hold" and was_active:
                 if len(self._hotkey_obj._state) < len(self._hotkey_obj._keys):

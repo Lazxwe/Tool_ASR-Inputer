@@ -77,10 +77,35 @@ def test_load_model_qwen_not_installed(tmp_path: Path):
     manager = ModelManager(models_dir=tmp_path)
 
     with patch.dict(sys.modules, {"qwen_asr": None}):
-        with pytest.raises(ModelManagerError, match="尚未安裝 qwen-asr"):
+        with pytest.raises(ModelManagerError, match="qwen-asr 模組載入失敗"):
             manager.load_model("0.6b")
         assert manager.status == ModelStatus.ERROR
         assert manager.last_error is not None
+
+
+def test_load_model_dll_error_diagnostics(tmp_path: Path):
+    manager = ModelManager(models_dir=tmp_path)
+
+    # Simulate DLL load failure in safetensors triggered when importing qwen_asr
+    class FailingModule:
+        def __getattr__(self, name):
+            raise ImportError("DLL load failed while importing _safetensors_rust: 找不到指定的模組。")
+
+    with patch.dict(sys.modules, {"qwen_asr": FailingModule()}):
+        with pytest.raises(ModelManagerError) as exc_info:
+            manager.load_model("0.6b")
+
+        err_str = str(exc_info.value)
+        assert "DLL load failed" in err_str
+        assert "python3.dll" in err_str
+        assert "safetensors" in err_str
+        assert manager.status == ModelStatus.ERROR
+
+
+def test_hf_symlinks_disabled_in_env(tmp_path: Path):
+    manager = ModelManager(models_dir=tmp_path)
+    assert os.environ.get("HF_HUB_DISABLE_SYMLINKS") == "1"
+    assert os.environ.get("HF_HUB_DISABLE_SYMLINKS_WARNING") == "1"
 
 
 def test_load_model_exception_handled(tmp_path: Path):

@@ -3,10 +3,16 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import signal
 import sys
 import time
 from pathlib import Path
+
+# Ensure UTF-8 output encoding and disable Hugging Face symlinks for Windows compatibility
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 from src.app.application import VoiceInputApp
 

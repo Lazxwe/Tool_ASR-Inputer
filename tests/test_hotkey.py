@@ -10,9 +10,16 @@ def test_normalize_hotkey_string() -> None:
     assert normalize_hotkey_string("f8") == "<f8>"
     assert normalize_hotkey_string("<f8>") == "<f8>"
     assert normalize_hotkey_string("F8") == "<f8>"
+    assert normalize_hotkey_string("ctrl_r") == "<ctrl_r>"
+    assert normalize_hotkey_string("ctrl_right") == "<ctrl_r>"
+    assert normalize_hotkey_string("ctrl_l") == "<ctrl_l>"
+    assert normalize_hotkey_string("alt_r") == "<alt_r>"
+    assert normalize_hotkey_string("shift_r") == "<shift_r>"
+    assert normalize_hotkey_string("cmd_r") == "<cmd_r>"
+    assert normalize_hotkey_string("ctrl_r+space") == "<ctrl_r>+<space>"
     assert normalize_hotkey_string("ctrl+alt+a") == "<ctrl>+<alt>+a"
     assert normalize_hotkey_string("cmd+shift+f12") == "<cmd>+<shift>+<f12>"
-    assert normalize_hotkey_string("") == "<f8>"
+    assert normalize_hotkey_string("") == "<ctrl_r>"
 
 
 def test_hotkey_listener_start_and_stop() -> None:
@@ -105,3 +112,25 @@ def test_hotkey_listener_unavailable() -> None:
     with patch("src.input.hotkey.keyboard", None):
         with pytest.raises(HotkeyError):
             listener.start()
+
+
+def test_hotkey_listener_resolve_matching_key() -> None:
+    listener = HotkeyListener(hotkey="ctrl_r")
+    assert listener._resolve_matching_key("dummy") == "dummy"
+
+    mock_hotkey = MagicMock()
+    mock_hotkey._keys = {"key_r_vk"}
+    listener._hotkey_obj = mock_hotkey
+
+    mock_listener = MagicMock()
+    mock_listener.canonical.return_value = "canonical_ctrl"
+    listener._listener = mock_listener
+
+    # Simulated raw key with .value
+    raw_key = MagicMock()
+    raw_key.value = "key_r_vk"
+
+    # Should match candidates ("key_r_vk") instead of falling back to "canonical_ctrl"
+    with patch("src.input.hotkey.keyboard.KeyCode", str):
+        matched = listener._resolve_matching_key(raw_key)
+        assert matched == "key_r_vk"

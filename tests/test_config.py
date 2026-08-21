@@ -8,7 +8,7 @@ def test_load_default_when_file_missing(tmp_path: Path):
     missing_file = tmp_path / "non_existent.json"
     config = load_config(missing_file)
     assert config.model == "0.6b"
-    assert config.hotkey == "f8"
+    assert config.hotkey == "ctrl_r"
     assert config.hotkey_mode == "hold"
     assert config.model_dir == "./models"
     assert config.sample_rate == 16000
@@ -93,7 +93,7 @@ def test_reset_config_with_backup(tmp_path: Path):
 
     reloaded = load_config(config_file)
     assert reloaded.model == "0.6b"
-    assert reloaded.hotkey == "f8"
+    assert reloaded.hotkey == "ctrl_r"
     assert reloaded.hotkey_mode == "hold"
 
 

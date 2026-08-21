@@ -36,6 +36,7 @@ dist/
 build/
 *.egg-info/
 *.spec
+!Tool_ASR_Inputer.spec
 
 # OS Specific
 .DS_Store

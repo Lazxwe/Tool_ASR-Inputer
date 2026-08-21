@@ -91,6 +91,8 @@ class ModelManager:
         self.models_dir.mkdir(parents=True, exist_ok=True)
         os.environ["HF_HOME"] = str(self.models_dir / "huggingface")
         os.environ["TRANSFORMERS_CACHE"] = str(self.models_dir / "huggingface" / "hub")
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
+        os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
     @property
     def status(self) -> ModelStatus:
@@ -293,9 +295,29 @@ class ModelManager:
             try:
                 from qwen_asr import Qwen3ASRModel
             except ImportError as ie:
+                import traceback
+                detailed_error = traceback.format_exc()
+                error_msg = str(ie)
                 guidance = self.get_offline_guidance(target_name)
+
+                diagnostic_hints: list[str] = []
+                if "DLL load failed" in detailed_error or "_safetensors_rust" in detailed_error or "python3.dll" in detailed_error:
+                    diagnostic_hints.append(
+                        "• 偵測到底層 C/Rust 原生模組 (例如 safetensors) DLL 載入失敗。\n"
+                        "  若為 Windows 打包環境 (.exe)，請確認打包目錄與 _internal/ 是否包含 'python3.dll' (Python Stable ABI 轉發層)。"
+                    )
+                elif "No module named" in detailed_error:
+                    diagnostic_hints.append(
+                        "• 偵測到缺少 Python 模組依賴，請執行:\n"
+                        "  pip install qwen-asr transformers safetensors huggingface_hub torch"
+                    )
+
+                hints_text = ("\n\n【診斷建議】\n" + "\n".join(diagnostic_hints)) if diagnostic_hints else ""
+
                 raise ModelManagerError(
-                    f"尚未安裝 qwen-asr 推論套件 (pip install qwen-asr)。\n{guidance}"
+                    f"qwen-asr 模組載入失敗 (底層錯誤: {error_msg})。{hints_text}\n\n"
+                    f"【底層錯誤堆疊】\n{detailed_error}\n"
+                    f"{guidance}"
                 ) from ie
 
             device = self.device
@@ -325,13 +347,16 @@ class ModelManager:
             return self._current_model_instance
 
         except Exception as e:
+            import traceback
             self._status = ModelStatus.ERROR
             self._last_error = str(e)
             self._current_model_name = None
             self._current_model_instance = None
             guidance = self.get_offline_guidance(target_name)
-            logger.error("Failed to load model '%s': %s", target_name, e)
-            raise ModelManagerError(f"模型載入失敗 '{target_name}': {e}\n{guidance}") from e
+            logger.error("Failed to load model '%s': %s\n%s", target_name, e, traceback.format_exc())
+            if isinstance(e, ModelManagerError):
+                raise
+            raise ModelManagerError(f"模型載入失敗 '{target_name}': {e}\n\n{guidance}") from e
 
     def unload_model(self) -> None:
         """Release the currently loaded model and reclaim memory/VRAM."""

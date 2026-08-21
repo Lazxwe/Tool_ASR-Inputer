@@ -260,5 +260,5 @@ def test_app_reset_configuration(tmp_path: Path) -> None:
 
     app.reset_configuration()
     assert app.config.model == "0.6b"
-    assert app.config.hotkey == "f8"
+    assert app.config.hotkey == "ctrl_r"
     assert app.hotkey_listener is not None
